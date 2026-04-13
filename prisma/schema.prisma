@@ -1,0 +1,108 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
+// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  OWNER
+  EMPLOYEE
+}
+
+enum Module {
+  CARNES_PREPARADAS
+  CARNES_AHUMADAS
+  CARNE_CRUDA
+  VERDURAS
+  BEBIDAS_BODEGA
+  BEBIDAS_SERVICIO
+  SALSAS
+  COCINA
+  SERVICIO
+  BODEGA
+  DESECHABLES
+}
+
+enum StockStatus {
+  OK
+  BAJO
+  CRITICO
+}
+
+model User {
+  id        String        @id @default(cuid())
+  name      String
+  pin       String
+  role      Role          @default(EMPLOYEE)
+  active    Boolean       @default(true)
+  createdAt DateTime      @default(now())
+  records   DailyRecord[]
+}
+
+model Product {
+  id        String        @id @default(cuid())
+  name      String
+  category  String
+  module    Module
+  unit      String        @default("unidad")
+  minStock  Float         @default(0)
+  maxStock  Float?
+  active    Boolean       @default(true)
+  createdAt DateTime      @default(now())
+  records   DailyRecord[]
+}
+
+model DailyRecord {
+  id            String      @id @default(cuid())
+  productId     String
+  product       Product     @relation(fields: [productId], references: [id])
+  date          DateTime    @db.Date
+
+  // Stock simple (cocina, bodega, servicio, salsas)
+  currentStock  Float?
+
+  // Seguimiento de peso (carnes preparadas, carne cruda, verduras)
+  initialWeight Float?
+  restock       Float?
+  waste1        Float?
+  waste2        Float?
+  finalWeight   Float?
+
+  // Carnes ahumadas
+  units         Int?
+  weightLb      Float?
+
+  // Bebidas servicio
+  initialStock  Float?
+  finalStock    Float?
+  consumption   Float?
+
+  status        StockStatus @default(OK)
+  notes         String?
+  userId        String?
+  user          User?       @relation(fields: [userId], references: [id])
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
+
+  @@unique([productId, date])
+}
+
+model Alert {
+  id          String      @id @default(cuid())
+  productId   String
+  productName String
+  module      Module
+  status      StockStatus
+  message     String
+  read        Boolean     @default(false)
+  createdAt   DateTime    @default(now())
+}
