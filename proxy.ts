@@ -5,7 +5,7 @@ const SECRET = new TextEncoder().encode(
   process.env.JWT_SECRET || 'inventario-restaurante-secret-key-2024'
 )
 
-const PUBLIC_PATHS = ['/login']
+const PUBLIC_PATHS = ['/login', '/setup', '/api/health']
 
 export async function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl
