@@ -31,13 +31,22 @@ export default async function Navbar() {
         </Link>
 
         {user?.role === 'OWNER' && (
-          <Link
-            href="/admin"
-            className="p-2 rounded-lg hover:bg-gray-700 transition"
-            title="Administración"
-          >
-            <span className="text-xl">⚙️</span>
-          </Link>
+          <>
+            <Link
+              href="/consumo"
+              className="p-2 rounded-lg hover:bg-gray-700 transition"
+              title="Consumo diario"
+            >
+              <span className="text-xl">📊</span>
+            </Link>
+            <Link
+              href="/admin"
+              className="p-2 rounded-lg hover:bg-gray-700 transition"
+              title="Administración"
+            >
+              <span className="text-xl">⚙️</span>
+            </Link>
+          </>
         )}
 
         <div className="flex items-center gap-2">
