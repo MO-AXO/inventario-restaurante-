@@ -18,6 +18,13 @@ export default async function Navbar() {
 
       <div className="flex items-center gap-3">
         <Link
+          href="/resumen"
+          className="p-2 rounded-lg hover:bg-gray-700 transition"
+          title="Resumen de inventario"
+        >
+          <span className="text-xl">📋</span>
+        </Link>
+        <Link
           href="/alertas"
           className="relative p-2 rounded-lg hover:bg-gray-700 transition"
           title="Alertas"
