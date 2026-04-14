@@ -3,10 +3,9 @@ export const dynamic = 'force-dynamic'
 import { notFound } from 'next/navigation'
 import { prisma } from '@/lib/db'
 import Navbar from '@/components/Navbar'
-import InventoryForm from '@/components/InventoryForm'
+import ModuleProductList from '@/components/ModuleProductList'
 import { MODULE_LABELS, MODULE_ICONS, todayDate, WEIGHT_MODULES, SMOKED_MODULES, BEVERAGE_SERVICE_MODULES, CARNES_SERVICIO_MODULES, RESTAURANTE_RESTOCK_MAP } from '@/lib/utils'
 import { Module } from '@prisma/client'
-import { saveInventoryRecord } from '@/app/actions/inventory'
 
 type Props = { params: Promise<{ module: string }> }
 
@@ -75,31 +74,21 @@ export default async function InventarioModulePage({ params }: Props) {
             No hay productos en este módulo. Agrégalos desde Administración.
           </div>
         ) : (
-          <div className="space-y-3">
-            {isClosed && (
-              <div className="bg-gray-100 border border-gray-300 rounded-2xl px-4 py-3 text-sm text-gray-600 text-center font-medium">
-                Día cerrado — solo lectura
-              </div>
-            )}
-            {products.map((product) => (
-              <InventoryForm
-                key={product.id}
-                product={{
-                  id: product.id,
-                  name: product.name,
-                  category: product.category,
-                  unit: product.unit,
-                  minStock: product.minStock,
-                  module: product.module,
-                }}
-                today={today}
-                formType={formType}
-                existing={product.records[0] ?? null}
-                action={saveInventoryRecord}
-                dayClosed={isClosed}
-              />
-            ))}
-          </div>
+          <ModuleProductList
+            products={products.map((p) => ({
+              id: p.id,
+              name: p.name,
+              category: p.category,
+              unit: p.unit,
+              minStock: p.minStock,
+              module: p.module,
+              existing: p.records[0] ?? null,
+            }))}
+            today={today}
+            formType={formType}
+            dayClosed={isClosed}
+            isClosed={isClosed}
+          />
         )}
       </main>
     </div>
