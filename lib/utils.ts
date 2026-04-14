@@ -59,8 +59,8 @@ export const MODULE_ICONS: Record<Module, string> = {
 export function calcStatus(currentStock: number | null, minStock: number): StockStatus {
   if (currentStock === null || currentStock === undefined) return 'CRITICO'
   if (currentStock === 0) return 'CRITICO'
-  if (currentStock <= minStock) return 'CRITICO'
-  if (currentStock <= minStock * 1.5) return 'BAJO'
+  if (currentStock < minStock) return 'CRITICO'
+  if (currentStock === minStock) return 'BAJO'
   return 'OK'
 }
 
