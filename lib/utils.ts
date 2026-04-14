@@ -26,6 +26,7 @@ export const MODULE_LABELS: Record<Module, string> = {
   SALSAS_ADEREZOS_BODEGA:       'Salsas y Aderezos Bodega',
   CONDIMENTOS_BODEGA:           'Condimentos Bodega',
   MATERIA_PRIMA_SALSA:          'Materia Prima Salsa',
+  LIMPIEZA_BODEGA:              'Limpieza Bodega',
 }
 
 export const MODULE_ICONS: Record<Module, string> = {
@@ -54,6 +55,7 @@ export const MODULE_ICONS: Record<Module, string> = {
   SALSAS_ADEREZOS_BODEGA:       '🥫',
   CONDIMENTOS_BODEGA:           '🫚',
   MATERIA_PRIMA_SALSA:          '🌿',
+  LIMPIEZA_BODEGA:              '🧴',
 }
 
 export function calcStatus(currentStock: number | null, minStock: number): StockStatus {
@@ -95,6 +97,7 @@ export const SECTION_GROUPS: { label: string; icon: string; modules: Module[] }[
       'CARNE_CRUDA',
       'CARNES_AHUMADAS',
       'MATERIA_PRIMA_SALSA',
+      'LIMPIEZA_BODEGA',
     ],
   },
   {
@@ -141,5 +144,5 @@ export const SIMPLE_STOCK_MODULES: Module[] = [
   'HARINAS_ACEITE_BODEGA', 'LACTEOS_BODEGA',
   'CONDIMENTOS_RESTAURANTE', 'DESECHABLES_BOLSAS_RESTAURANTE', 'DESECHABLES_BODEGA',
   'LIMPIEZA_RESTAURANTE',
-  'SALSAS_ADEREZOS_BODEGA', 'CONDIMENTOS_BODEGA', 'MATERIA_PRIMA_SALSA',
+  'SALSAS_ADEREZOS_BODEGA', 'CONDIMENTOS_BODEGA', 'MATERIA_PRIMA_SALSA', 'LIMPIEZA_BODEGA',
 ]
