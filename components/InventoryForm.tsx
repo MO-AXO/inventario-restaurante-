@@ -159,7 +159,7 @@ export default function InventoryForm({ product, today, formType, existing, acti
                     <input type="number" name="finalWeight" step="0.01" min="0" inputMode="decimal"
                       defaultValue={existing?.finalWeight ?? ''} className={inputClass} />
                   </div>
-                  {existing?.initialWeight !== null && existing?.finalWeight !== null && (
+                  {existing && existing.initialWeight !== null && existing.finalWeight !== null && (
                     <div className="col-span-2 bg-gray-100 rounded-xl px-3 py-2">
                       <span className="text-xs text-gray-600">Consumo del día: </span>
                       <span className="font-bold">
