@@ -49,6 +49,11 @@ export async function saveInventoryRecord(
     const consumption = initialStock + restock - finalStock
     const status = calcStatus(finalStock, product.minStock)
     data = { ...data, initialStock, restock, finalStock, consumption, currentStock: finalStock, status }
+
+    // Si hay recarga, descontar de Bebidas Bodega automáticamente
+    if (restock > 0) {
+      await deductFromBodega(product.name, restock, date, session.userId)
+    }
   } else {
     // Simple stock
     const currentStock = parseFloat(formData.get('currentStock') as string) || 0
@@ -80,6 +85,44 @@ export async function saveInventoryRecord(
   revalidatePath(`/inventario/${module.toLowerCase()}`)
 
   return { success: true }
+}
+
+// Descuenta del stock de Bebidas Bodega cuando se registra una recarga en Servicio
+async function deductFromBodega(productName: string, qty: number, date: string, userId: string) {
+  const bodegaProduct = await prisma.product.findFirst({
+    where: { name: { equals: productName, mode: 'insensitive' }, module: 'BEBIDAS_BODEGA', active: true },
+  })
+  if (!bodegaProduct) return
+
+  // Buscar stock actual: registro de hoy o el más reciente
+  const latestRecord = await prisma.dailyRecord.findFirst({
+    where: { productId: bodegaProduct.id },
+    orderBy: { date: 'desc' },
+  })
+
+  const currentStock = Math.max(0, (latestRecord?.currentStock ?? 0) - qty)
+  const status = calcStatus(currentStock, bodegaProduct.minStock)
+
+  await prisma.dailyRecord.upsert({
+    where: { productId_date: { productId: bodegaProduct.id, date: new Date(date) } },
+    update: { currentStock, status, userId },
+    create: { productId: bodegaProduct.id, date: new Date(date), currentStock, status, userId },
+  })
+
+  // Alerta si quedó bajo o crítico
+  if (status === 'CRITICO' || status === 'BAJO') {
+    await prisma.alert.create({
+      data: {
+        productId: bodegaProduct.id,
+        productName: bodegaProduct.name,
+        module: 'BEBIDAS_BODEGA',
+        status,
+        message: `${bodegaProduct.name} en Bodega bajo por recarga de Servicio. Stock: ${currentStock} ${bodegaProduct.unit} (mínimo: ${bodegaProduct.minStock})`,
+      },
+    })
+  }
+
+  revalidatePath('/inventario/bebidas_bodega')
 }
 
 export async function markAlertRead(alertId: string): Promise<void> {
