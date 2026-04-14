@@ -3,6 +3,7 @@
 import { useActionState, useState } from 'react'
 import { Module } from '@prisma/client'
 import Link from 'next/link'
+import { calcStatus } from '@/lib/utils'
 
 type Product = {
   id: string
@@ -40,6 +41,25 @@ type Props = {
   dayClosed?: boolean
 }
 
+// Extract the relevant stock number from the record based on form type
+function effectiveStock(
+  formType: Props['formType'],
+  existing: ExistingRecord | null
+): number | null {
+  if (!existing) return null
+  switch (formType) {
+    case 'carnes_servicio':
+    case 'weight':
+      return existing.finalWeight
+    case 'smoked':
+      return existing.weightLb
+    case 'beverage_service':
+      return existing.finalStock
+    default: // simple, salsas_restaurante
+      return existing.currentStock
+  }
+}
+
 function statusClass(s: string | undefined) {
   if (s === 'CRITICO') return 'border-red-400 bg-red-50'
   if (s === 'BAJO') return 'border-yellow-400 bg-yellow-50'
@@ -58,11 +78,15 @@ export default function InventoryForm({ product, today, formType, existing, acti
   const [open, setOpen] = useState(!existing)
   const [state, formAction, pending] = useActionState(action, undefined)
 
+  // Compute status live from stock + minStock so color always reflects new thresholds
+  const stock = effectiveStock(formType, existing)
+  const liveStatus = existing ? calcStatus(stock, product.minStock) : undefined
+
   const inputClass = 'w-full border border-gray-300 rounded-xl px-3 py-2.5 text-base focus:outline-none focus:ring-2 focus:ring-orange-400 bg-white'
   const labelClass = 'block text-xs font-semibold text-gray-600 mb-1'
 
   return (
-    <div className={`rounded-2xl border-2 overflow-hidden transition ${statusClass(existing?.status)}`}>
+    <div className={`rounded-2xl border-2 overflow-hidden transition ${statusClass(liveStatus)}`}>
       {/* Header - always visible */}
       <div className="w-full flex items-center justify-between px-4 py-3">
         <button
@@ -70,7 +94,7 @@ export default function InventoryForm({ product, today, formType, existing, acti
           className="flex-1 flex items-center gap-2 text-left"
           onClick={() => setOpen(!open)}
         >
-          {statusDot(existing?.status)}
+          {statusDot(liveStatus)}
           <div>
             <span className="font-semibold">{product.name}</span>
             <span className="text-xs text-gray-500 ml-2">{product.category}</span>
