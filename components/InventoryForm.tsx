@@ -294,7 +294,7 @@ export default function InventoryForm({ product, today, formType, existing, acti
                   </div>
                   {existing?.restock !== null && existing?.restock !== undefined && existing.restock > 0 && (
                     <div className="bg-blue-50 border border-blue-200 rounded-xl px-3 py-2 text-xs text-blue-700">
-                      Se descontaron <strong>{existing.restock} {product.unit}</strong> de Salsas y Aderezos Bodega
+                      Se descontaron <strong>{existing.restock} {product.unit}</strong> de Bodega
                     </div>
                   )}
                 </div>

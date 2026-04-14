@@ -4,7 +4,7 @@ import { notFound } from 'next/navigation'
 import { prisma } from '@/lib/db'
 import Navbar from '@/components/Navbar'
 import InventoryForm from '@/components/InventoryForm'
-import { MODULE_LABELS, MODULE_ICONS, todayDate, WEIGHT_MODULES, SMOKED_MODULES, BEVERAGE_SERVICE_MODULES, CARNES_SERVICIO_MODULES, SALSAS_RESTOCK_MODULES } from '@/lib/utils'
+import { MODULE_LABELS, MODULE_ICONS, todayDate, WEIGHT_MODULES, SMOKED_MODULES, BEVERAGE_SERVICE_MODULES, CARNES_SERVICIO_MODULES, RESTAURANTE_RESTOCK_MAP } from '@/lib/utils'
 import { Module } from '@prisma/client'
 import { saveInventoryRecord } from '@/app/actions/inventory'
 
@@ -30,7 +30,7 @@ function getFormType(mod: Module): 'carnes_servicio' | 'weight' | 'smoked' | 'be
   if (WEIGHT_MODULES.includes(mod)) return 'weight'
   if (SMOKED_MODULES.includes(mod)) return 'smoked'
   if (BEVERAGE_SERVICE_MODULES.includes(mod)) return 'beverage_service'
-  if (SALSAS_RESTOCK_MODULES.includes(mod)) return 'salsas_restaurante'
+  if (mod in RESTAURANTE_RESTOCK_MAP) return 'salsas_restaurante'
   return 'simple'
 }
 

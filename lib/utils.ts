@@ -127,13 +127,16 @@ export const SMOKED_MODULES: Module[] = ['CARNES_AHUMADAS']
 // Which modules track beverage service (initial/restock/final/consumption)
 export const BEVERAGE_SERVICE_MODULES: Module[] = ['BEBIDAS_SERVICIO']
 
-// Which modules allow restocking from their matching bodega module
-export const SALSAS_RESTOCK_MODULES: Module[] = ['SALSAS_ADEREZOS_RESTAURANTE']
+// Restaurante modules that restock from a matching bodega module (same product name)
+export const RESTAURANTE_RESTOCK_MAP: Partial<Record<Module, Module>> = {
+  SALSAS_ADEREZOS_RESTAURANTE: 'SALSAS_ADEREZOS_BODEGA',
+  VERDURAS_RESTAURANTE:        'VERDURAS',
+}
 
 // Modules with simple stock entry
 export const SIMPLE_STOCK_MODULES: Module[] = [
   'BEBIDAS_BODEGA', 'SALSAS', 'COCINA', 'SERVICIO', 'BODEGA', 'DESECHABLES',
-  'GUARNICIONES', 'VERDURAS_RESTAURANTE', 'HARINAS_ACEITE_RESTAURANTE',
+  'GUARNICIONES', 'HARINAS_ACEITE_RESTAURANTE',
   'HARINAS_ACEITE_BODEGA', 'LACTEOS_RESTAURANTE', 'LACTEOS_BODEGA',
   'CONDIMENTOS_RESTAURANTE', 'DESECHABLES_BOLSAS_RESTAURANTE', 'DESECHABLES_BODEGA',
   'LIMPIEZA_RESTAURANTE',

@@ -5,7 +5,7 @@ import { prisma } from '@/lib/db'
 import { getSession } from '@/lib/auth'
 import { calcStatus } from '@/lib/utils'
 import { Module } from '@prisma/client'
-import { WEIGHT_MODULES, SMOKED_MODULES, BEVERAGE_SERVICE_MODULES, CARNES_SERVICIO_MODULES, SALSAS_RESTOCK_MODULES } from '@/lib/utils'
+import { WEIGHT_MODULES, SMOKED_MODULES, BEVERAGE_SERVICE_MODULES, CARNES_SERVICIO_MODULES, RESTAURANTE_RESTOCK_MAP } from '@/lib/utils'
 
 export async function saveInventoryRecord(
   _prevState: { success?: boolean; error?: string } | undefined,
@@ -70,22 +70,21 @@ export async function saveInventoryRecord(
     if (restock > 0) {
       await deductFromModule(product.name, restock, date, session.userId, 'BEBIDAS_BODEGA')
     }
-  } else if (SALSAS_RESTOCK_MODULES.includes(module)) {
+  } else if (module in RESTAURANTE_RESTOCK_MAP) {
     const currentStock = parseFloat(formData.get('currentStock') as string) || 0
     const restock = parseFloat(formData.get('restock') as string) || 0
     const status = calcStatus(currentStock, product.minStock)
     data = { ...data, currentStock, restock, status }
 
-    // Descontar delta de recarga de Salsas y Aderezos Bodega (idempotente)
-    if (restock > 0 || true) {
-      const existingToday = await prisma.dailyRecord.findUnique({
-        where: { productId_date: { productId, date: new Date(date) } },
-      })
-      const oldRestock = existingToday?.restock ?? 0
-      const delta = restock - oldRestock
-      if (delta !== 0) {
-        await deductFromModule(product.name, delta, date, session.userId, 'SALSAS_ADEREZOS_BODEGA')
-      }
+    // Descontar delta de recarga del módulo bodega correspondiente (idempotente)
+    const existingToday = await prisma.dailyRecord.findUnique({
+      where: { productId_date: { productId, date: new Date(date) } },
+    })
+    const oldRestock = existingToday?.restock ?? 0
+    const delta = restock - oldRestock
+    if (delta !== 0) {
+      const targetModule = RESTAURANTE_RESTOCK_MAP[module]!
+      await deductFromModule(product.name, delta, date, session.userId, targetModule)
     }
   } else {
     // Simple stock
@@ -149,8 +148,8 @@ async function deductFromModule(
 
   await prisma.dailyRecord.upsert({
     where: { productId_date: { productId: bodegaProduct.id, date: new Date(date) } },
-    update: { currentStock, status, userId },
-    create: { productId: bodegaProduct.id, date: new Date(date), currentStock, status, userId },
+    update: { currentStock, finalWeight: currentStock, status, userId },
+    create: { productId: bodegaProduct.id, date: new Date(date), currentStock, finalWeight: currentStock, status, userId },
   })
 
   // Alerta si quedó bajo o crítico — one unread alert per product max
