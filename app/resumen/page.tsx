@@ -47,9 +47,18 @@ export default async function ResumenPage() {
     <div className="min-h-screen flex flex-col">
       <Navbar />
       <main className="flex-1 p-4 max-w-5xl mx-auto w-full">
-        <div className="mb-5">
-          <h1 className="text-xl font-bold">Resumen de inventario</h1>
-          <p className="text-sm text-gray-500 capitalize">{dateLabel}</p>
+        <div className="mb-5 flex items-start justify-between">
+          <div>
+            <h1 className="text-xl font-bold">Resumen de inventario</h1>
+            <p className="text-sm text-gray-500 capitalize">{dateLabel}</p>
+          </div>
+          <a
+            href="/resumen"
+            className="text-xs text-gray-400 hover:text-gray-600 mt-1 flex items-center gap-1"
+            title="Actualizar"
+          >
+            🔄 Actualizar
+          </a>
         </div>
 
         <InventarioResumen products={serialized} />
