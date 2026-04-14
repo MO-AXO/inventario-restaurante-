@@ -86,7 +86,6 @@ export const SECTION_GROUPS: { label: string; icon: string; modules: Module[] }[
     icon: '📦',
     modules: [
       'BEBIDAS_BODEGA',
-      'BODEGA',
       'LACTEOS_BODEGA',
       'SALSAS_ADEREZOS_BODEGA',
       'CONDIMENTOS_BODEGA',
