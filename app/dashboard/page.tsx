@@ -8,10 +8,12 @@ import {
   MODULE_ICONS,
   statusColor,
   statusBadge,
+  calcStatus,
   todayDate,
   SECTION_GROUPS,
   CARNES_SERVICIO_MODULES,
   WEIGHT_MODULES,
+  SMOKED_MODULES,
   BEVERAGE_SERVICE_MODULES,
 } from '@/lib/utils'
 import { Module, StockStatus } from '@prisma/client'
@@ -55,10 +57,24 @@ export default async function DashboardPage() {
 
   const isClosed = !!dayClose
 
-  const criticalCount = products.filter((p) => p.records[0]?.status === 'CRITICO').length
-  const lowCount = products.filter((p) => p.records[0]?.status === 'BAJO').length
-  const okCount = products.filter((p) => p.records[0]?.status === 'OK').length
-  const noDataCount = products.filter((p) => p.records.length === 0).length
+  // Compute status live from actual stock values (not stored DB status)
+  function effectiveStock(mod: Module, r: typeof products[0]['records'][0] | undefined): number | null {
+    if (!r) return null
+    if (CARNES_SERVICIO_MODULES.includes(mod) || WEIGHT_MODULES.includes(mod)) return r.finalWeight
+    if (SMOKED_MODULES.includes(mod)) return r.weightLb
+    if (BEVERAGE_SERVICE_MODULES.includes(mod)) return r.finalStock
+    return r.currentStock
+  }
+  function liveStatus(p: typeof products[0]): StockStatus | null {
+    const r = p.records[0]
+    if (!r) return null
+    return calcStatus(effectiveStock(p.module as Module, r), p.minStock)
+  }
+
+  const criticalCount = products.filter((p) => liveStatus(p) === 'CRITICO').length
+  const lowCount      = products.filter((p) => liveStatus(p) === 'BAJO').length
+  const okCount       = products.filter((p) => liveStatus(p) === 'OK').length
+  const noDataCount   = products.filter((p) => p.records.length === 0).length
 
   // Group by module
   const byModule = products.reduce((acc, p) => {
@@ -179,9 +195,9 @@ export default async function DashboardPage() {
                   >
                     <span className="text-3xl">{MODULE_ICONS[mod]}</span>
                     <span className="text-sm font-medium text-center">{MODULE_LABELS[mod]}</span>
-                    {byModule[mod] && byModule[mod].filter((p) => p.records[0]?.status === 'CRITICO').length > 0 && (
+                    {byModule[mod] && byModule[mod].filter((p) => liveStatus(p) === 'CRITICO').length > 0 && (
                       <span className="text-red-500 font-bold text-xs">
-                        {byModule[mod].filter((p) => p.records[0]?.status === 'CRITICO').length} críticos
+                        {byModule[mod].filter((p) => liveStatus(p) === 'CRITICO').length} críticos
                       </span>
                     )}
                   </Link>
@@ -207,15 +223,16 @@ export default async function DashboardPage() {
                 </thead>
                 <tbody>
                   {products
-                    .filter((p) => p.records[0]?.status === 'CRITICO' || p.records[0]?.status === 'BAJO')
+                    .filter((p) => liveStatus(p) === 'CRITICO' || liveStatus(p) === 'BAJO')
                     .map((p) => {
                       const record = p.records[0]
-                      const status = record?.status as StockStatus
+                      const status = liveStatus(p) as StockStatus
+                      const stock = effectiveStock(p.module as Module, record)
                       return (
                         <tr key={p.id} className="border-b border-gray-100 last:border-0">
                           <td className="px-4 py-3 font-medium">{p.name}</td>
-                          <td className="px-4 py-3 text-gray-500 hidden sm:table-cell">{MODULE_LABELS[p.module]}</td>
-                          <td className="px-4 py-3 text-right">{record?.currentStock ?? '—'} {p.unit}</td>
+                          <td className="px-4 py-3 text-gray-500 hidden sm:table-cell">{MODULE_LABELS[p.module as Module]}</td>
+                          <td className="px-4 py-3 text-right">{stock !== null ? stock.toFixed(1) : '—'} {p.unit}</td>
                           <td className="px-4 py-3 text-center">
                             <span className={`inline-block px-2 py-0.5 rounded-full text-xs font-bold ${statusColor(status)}`}>
                               {statusBadge(status)}
