@@ -1,7 +1,7 @@
 import { Module, StockStatus } from '@prisma/client'
 
 export const MODULE_LABELS: Record<Module, string> = {
-  CARNES_PREPARADAS: 'Carnes Preparadas',
+  CARNES_PREPARADAS: 'Carnes para Servicio',
   CARNES_AHUMADAS: 'Carnes Ahumadas',
   CARNE_CRUDA: 'Carne Cruda',
   VERDURAS: 'Verduras',
