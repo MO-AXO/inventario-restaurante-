@@ -14,7 +14,7 @@ import {
 } from '@/lib/utils'
 import { Module, StockStatus } from '@prisma/client'
 
-type Record = {
+type StockRecord = {
   currentStock: number | null
   finalWeight: number | null
   weightLb: number | null
@@ -31,10 +31,10 @@ export type ProductRow = {
   unit: string
   minStock: number
   module: Module
-  records: Record[]
+  records: StockRecord[]
 }
 
-function stockDisplay(product: { unit: string; module: Module }, record: Record | undefined): string {
+function stockDisplay(product: { unit: string; module: Module }, record: StockRecord | undefined): string {
   if (!record) return '—'
   const mod = product.module
   if (CARNES_SERVICIO_MODULES.includes(mod) || WEIGHT_MODULES.includes(mod))
