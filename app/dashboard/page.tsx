@@ -5,6 +5,7 @@ import { prisma } from '@/lib/db'
 import Navbar from '@/components/Navbar'
 import { MODULE_LABELS, MODULE_ICONS, statusColor, statusBadge, todayDate, SECTION_GROUPS } from '@/lib/utils'
 import { Module, StockStatus } from '@prisma/client'
+import { getSession } from '@/lib/auth'
 
 async function getDashboardData() {
   const today = todayDate()
@@ -27,6 +28,8 @@ async function getDashboardData() {
 }
 
 export default async function DashboardPage() {
+  const session = await getSession()
+  const isOwner = session?.role === 'OWNER'
   const { products, alerts } = await getDashboardData()
 
   const criticalCount = products.filter((p) => p.records[0]?.status === 'CRITICO').length
@@ -46,29 +49,31 @@ export default async function DashboardPage() {
       <Navbar />
       <main className="flex-1 p-4 max-w-5xl mx-auto w-full">
         <div className="mb-6">
-          <h1 className="text-2xl font-bold text-gray-900">Dashboard</h1>
+          <h1 className="text-2xl font-bold text-gray-900">{isOwner ? 'Dashboard' : 'Inventario'}</h1>
           <p className="text-gray-500 text-sm">{new Date().toLocaleDateString('es-CR', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}</p>
         </div>
 
-        {/* Summary Cards */}
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-6">
-          <div className="bg-red-500 text-white rounded-2xl p-4 text-center">
-            <div className="text-3xl font-bold">{criticalCount}</div>
-            <div className="text-sm font-medium mt-1">Críticos</div>
+        {/* Summary Cards — owner only */}
+        {isOwner && (
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-6">
+            <div className="bg-red-500 text-white rounded-2xl p-4 text-center">
+              <div className="text-3xl font-bold">{criticalCount}</div>
+              <div className="text-sm font-medium mt-1">Críticos</div>
+            </div>
+            <div className="bg-yellow-400 text-black rounded-2xl p-4 text-center">
+              <div className="text-3xl font-bold">{lowCount}</div>
+              <div className="text-sm font-medium mt-1">Bajo stock</div>
+            </div>
+            <div className="bg-green-500 text-white rounded-2xl p-4 text-center">
+              <div className="text-3xl font-bold">{okCount}</div>
+              <div className="text-sm font-medium mt-1">OK</div>
+            </div>
+            <div className="bg-gray-300 text-gray-700 rounded-2xl p-4 text-center">
+              <div className="text-3xl font-bold">{noDataCount}</div>
+              <div className="text-sm font-medium mt-1">Sin registrar</div>
+            </div>
           </div>
-          <div className="bg-yellow-400 text-black rounded-2xl p-4 text-center">
-            <div className="text-3xl font-bold">{lowCount}</div>
-            <div className="text-sm font-medium mt-1">Bajo stock</div>
-          </div>
-          <div className="bg-green-500 text-white rounded-2xl p-4 text-center">
-            <div className="text-3xl font-bold">{okCount}</div>
-            <div className="text-sm font-medium mt-1">OK</div>
-          </div>
-          <div className="bg-gray-300 text-gray-700 rounded-2xl p-4 text-center">
-            <div className="text-3xl font-bold">{noDataCount}</div>
-            <div className="text-sm font-medium mt-1">Sin registrar</div>
-          </div>
-        </div>
+        )}
 
         {/* Quick actions grouped by section */}
         <div className="mb-6 space-y-6">
@@ -100,8 +105,8 @@ export default async function DashboardPage() {
           ))}
         </div>
 
-        {/* Critical & Low items */}
-        {(criticalCount > 0 || lowCount > 0) && (
+        {/* Critical & Low items — owner only */}
+        {isOwner && (criticalCount > 0 || lowCount > 0) && (
           <div>
             <h2 className="text-lg font-semibold mb-3">Requieren atención</h2>
             <div className="bg-white rounded-2xl border border-gray-200 overflow-hidden">
