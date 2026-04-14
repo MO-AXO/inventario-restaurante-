@@ -5,10 +5,26 @@ import Link from 'next/link'
 import { prisma } from '@/lib/db'
 import { getSession } from '@/lib/auth'
 import { redirect } from 'next/navigation'
-import { MODULE_LABELS, CARNES_SERVICIO_MODULES, WEIGHT_MODULES, BEVERAGE_SERVICE_MODULES, todayDate } from '@/lib/utils'
+import { CARNES_SERVICIO_MODULES, BEVERAGE_SERVICE_MODULES, todayDate } from '@/lib/utils'
 import { Module } from '@prisma/client'
 
 type Props = { searchParams: Promise<{ dias?: string }> }
+
+type DayData = {
+  consumption: number | null
+  initial: number | null
+  mid: number | null      // mid-day weight (carnes only)
+  restock: number | null
+  final: number | null
+}
+
+type ProductRow = {
+  id: string
+  name: string
+  unit: string
+  module: Module
+  days: Record<string, DayData>   // date → DayData
+}
 
 export default async function ConsumoDiarioPage({ searchParams }: Props) {
   const session = await getSession()
@@ -29,24 +45,23 @@ export default async function ConsumoDiarioPage({ searchParams }: Props) {
     d.setDate(d.getDate() - i)
     dates.push(d.toISOString().split('T')[0])
   }
+  const datesNewest = [...dates].reverse()
+
+  const targetModules: Module[] = [...CARNES_SERVICIO_MODULES, ...BEVERAGE_SERVICE_MODULES]
 
   const records = await prisma.dailyRecord.findMany({
     where: {
       date: { gte: startDate },
-      product: {
-        active: true,
-        module: { in: [...CARNES_SERVICIO_MODULES, ...WEIGHT_MODULES, ...BEVERAGE_SERVICE_MODULES] },
-      },
+      product: { active: true, module: { in: targetModules } },
     },
     include: {
       product: { select: { id: true, name: true, module: true, unit: true } },
     },
+    orderBy: { date: 'asc' },
   })
 
-  // Build maps
-  type ProductInfo = { name: string; module: Module; unit: string }
-  const productMap: Record<string, ProductInfo> = {}
-  const consumptionMap: Record<string, Record<string, number>> = {}
+  // Build product rows
+  const productMap: Record<string, ProductRow> = {}
 
   for (const r of records) {
     const pid = r.productId
@@ -54,51 +69,57 @@ export default async function ConsumoDiarioPage({ searchParams }: Props) {
     const mod = r.product.module as Module
 
     if (!productMap[pid]) {
-      productMap[pid] = { name: r.product.name, module: mod, unit: r.product.unit }
+      productMap[pid] = {
+        id: pid,
+        name: r.product.name,
+        unit: r.product.unit,
+        module: mod,
+        days: {},
+      }
     }
 
-    let consumption = 0
+    let consumption: number | null = null
+    let initial: number | null = null
+    let mid: number | null = null
+    let restock: number | null = null
+    let final: number | null = null
+
     if (CARNES_SERVICIO_MODULES.includes(mod)) {
-      consumption = (r.initialWeight ?? 0) + (r.restock ?? 0) - (r.finalWeight ?? 0)
-    } else if (WEIGHT_MODULES.includes(mod)) {
-      consumption = (r.initialWeight ?? 0) + (r.restock ?? 0) - (r.finalWeight ?? 0)
+      initial = r.initialWeight
+      mid = r.waste1          // waste1 stores mid-day weight
+      restock = r.restock
+      final = r.finalWeight
+      consumption = initial !== null && final !== null
+        ? (initial ?? 0) + (restock ?? 0) - final
+        : null
     } else if (BEVERAGE_SERVICE_MODULES.includes(mod)) {
-      consumption = r.consumption ?? 0
+      initial = r.initialStock
+      restock = r.restock
+      final = r.finalStock
+      consumption = r.consumption
     }
 
-    if (!consumptionMap[pid]) consumptionMap[pid] = {}
-    consumptionMap[pid][dateStr] = consumption
+    productMap[pid].days[dateStr] = { consumption, initial, mid, restock, final }
   }
 
-  // Sort: module first, then name
-  const productIds = Object.keys(productMap).sort((a, b) => {
-    const modA = productMap[a].module
-    const modB = productMap[b].module
-    if (modA !== modB) return modA.localeCompare(modB)
-    return productMap[a].name.localeCompare(productMap[b].name)
-  })
+  const carnesProducts = Object.values(productMap)
+    .filter(p => CARNES_SERVICIO_MODULES.includes(p.module))
+    .sort((a, b) => a.name.localeCompare(b.name))
 
-  // Group products by module for display
-  const byModule: Record<string, string[]> = {}
-  for (const pid of productIds) {
-    const mod = productMap[pid].module
-    if (!byModule[mod]) byModule[mod] = []
-    byModule[mod].push(pid)
-  }
-
-  // Dates shown newest first in columns
-  const datesNewestFirst = [...dates].reverse()
+  const bebidasProducts = Object.values(productMap)
+    .filter(p => BEVERAGE_SERVICE_MODULES.includes(p.module))
+    .sort((a, b) => a.name.localeCompare(b.name))
 
   return (
     <div className="min-h-screen flex flex-col">
       <Navbar />
       <main className="flex-1 p-4 max-w-full mx-auto w-full">
-        <div className="mb-5 flex items-center justify-between max-w-6xl mx-auto">
+
+        {/* Header */}
+        <div className="mb-6 flex items-center justify-between max-w-6xl mx-auto">
           <div>
             <h1 className="text-xl font-bold">Consumo diario</h1>
-            <p className="text-sm text-gray-500">
-              Carnes y bebidas · últimos {validDias} días
-            </p>
+            <p className="text-sm text-gray-500">Últimos {validDias} días</p>
           </div>
           <div className="flex gap-2">
             {[7, 14, 30].map((d) => (
@@ -117,109 +138,165 @@ export default async function ConsumoDiarioPage({ searchParams }: Props) {
           </div>
         </div>
 
-        {productIds.length === 0 ? (
-          <div className="bg-white rounded-2xl border border-gray-200 p-8 text-center text-gray-500 max-w-6xl mx-auto">
-            No hay registros de consumo en este período.
-          </div>
-        ) : (
-          <div className="overflow-x-auto rounded-2xl border border-gray-200 shadow-sm">
-            <table className="text-sm w-full min-w-max bg-white">
-              <thead>
-                <tr className="bg-gray-50 border-b border-gray-200">
-                  <th className="text-left px-4 py-3 font-semibold sticky left-0 bg-gray-50 z-10 min-w-[160px]">
-                    Producto
-                  </th>
-                  {datesNewestFirst.map((d) => (
-                    <th key={d} className="text-right px-3 py-3 font-semibold whitespace-nowrap min-w-[80px]">
-                      <div>
-                        {new Date(d + 'T12:00:00').toLocaleDateString('es-CR', {
-                          weekday: 'short',
-                        })}
-                      </div>
-                      <div className="text-xs text-gray-400 font-normal">
-                        {new Date(d + 'T12:00:00').toLocaleDateString('es-CR', {
-                          day: 'numeric',
-                          month: 'short',
-                        })}
-                      </div>
-                    </th>
-                  ))}
-                  <th className="text-right px-4 py-3 font-semibold bg-orange-50 text-orange-700 min-w-[80px]">
-                    Prom.
-                  </th>
-                </tr>
-              </thead>
-              <tbody>
-                {Object.entries(byModule).map(([mod, pids]) => (
-                  <>
-                    {/* Module header row */}
-                    <tr key={`header-${mod}`} className="bg-gray-50 border-y border-gray-200">
-                      <td
-                        colSpan={datesNewestFirst.length + 2}
-                        className="px-4 py-2 text-xs font-bold text-gray-500 uppercase tracking-wide sticky left-0"
-                      >
-                        {MODULE_LABELS[mod as Module]}
-                      </td>
-                    </tr>
+        <div className="space-y-8">
+          {/* CARNES PARA SERVICIO */}
+          {carnesProducts.length > 0 && (
+            <Section
+              title="Carnes para Servicio"
+              icon="🥩"
+              products={carnesProducts}
+              dates={datesNewest}
+              showMid
+            />
+          )}
 
-                    {/* Product rows */}
-                    {pids.map((pid) => {
-                      const p = productMap[pid]
-                      const values = datesNewestFirst.map(
-                        (d) => consumptionMap[pid]?.[d] ?? null
-                      )
-                      const recorded = values.filter((v) => v !== null) as number[]
-                      const avg =
-                        recorded.length > 0
-                          ? recorded.reduce((a, b) => a + b, 0) / recorded.length
-                          : null
-                      const max = recorded.length > 0 ? Math.max(...recorded) : 0
+          {/* BEBIDAS SERVICIO */}
+          {bebidasProducts.length > 0 && (
+            <Section
+              title="Bebidas Servicio"
+              icon="🥤"
+              products={bebidasProducts}
+              dates={datesNewest}
+              showMid={false}
+            />
+          )}
 
-                      return (
-                        <tr
-                          key={pid}
-                          className="border-b border-gray-100 last:border-0 hover:bg-gray-50"
-                        >
-                          <td className="px-4 py-2.5 font-medium sticky left-0 bg-white hover:bg-gray-50 z-10 whitespace-nowrap">
-                            {p.name}
-                          </td>
-                          {values.map((v, i) => {
-                            // Color intensity based on value relative to max
-                            const intensity =
-                              v !== null && max > 0 ? v / max : 0
-                            const bg =
-                              v !== null && v > 0
-                                ? `rgba(249,115,22,${(intensity * 0.35).toFixed(2)})`
-                                : 'transparent'
-                            return (
-                              <td
-                                key={i}
-                                className="px-3 py-2.5 text-right"
-                                style={{ backgroundColor: bg }}
-                              >
-                                {v !== null ? (
-                                  <span className={v > 0 ? 'font-medium text-gray-800' : 'text-gray-300'}>
-                                    {v.toFixed(1)}
-                                  </span>
-                                ) : (
-                                  <span className="text-gray-200">—</span>
-                                )}
-                              </td>
-                            )
-                          })}
-                          <td className="px-4 py-2.5 text-right font-bold bg-orange-50 text-orange-700 whitespace-nowrap">
-                            {avg !== null ? `${avg.toFixed(1)} ${p.unit}` : '—'}
-                          </td>
-                        </tr>
-                      )
-                    })}
-                  </>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
+          {carnesProducts.length === 0 && bebidasProducts.length === 0 && (
+            <div className="bg-white rounded-2xl border border-gray-200 p-8 text-center text-gray-500">
+              No hay registros de consumo en este período.
+            </div>
+          )}
+        </div>
       </main>
+    </div>
+  )
+}
+
+// ---- Section component ----
+
+function Section({
+  title,
+  icon,
+  products,
+  dates,
+  showMid,
+}: {
+  title: string
+  icon: string
+  products: ProductRow[]
+  dates: string[]
+  showMid: boolean
+}) {
+  // Daily totals (consumption)
+  const dailyTotals: Record<string, number | null> = {}
+  for (const d of dates) {
+    const vals = products
+      .map(p => p.days[d]?.consumption ?? null)
+      .filter((v): v is number => v !== null)
+    dailyTotals[d] = vals.length > 0 ? vals.reduce((a, b) => a + b, 0) : null
+  }
+
+  return (
+    <div>
+      <div className="flex items-center gap-2 mb-3 max-w-full px-0.5">
+        <span className="text-2xl">{icon}</span>
+        <h2 className="text-lg font-bold text-gray-800">{title}</h2>
+      </div>
+
+      <div className="overflow-x-auto rounded-2xl border border-gray-200 shadow-sm">
+        <table className="text-sm w-full min-w-max bg-white">
+          <thead>
+            <tr className="bg-gray-50 border-b border-gray-200">
+              <th className="text-left px-4 py-3 font-semibold sticky left-0 bg-gray-50 z-10 min-w-[160px]">
+                Producto
+              </th>
+              {dates.map((d) => (
+                <th key={d} className="text-center px-3 py-3 font-semibold whitespace-nowrap min-w-[90px]">
+                  <div className="text-gray-700">
+                    {new Date(d + 'T12:00:00').toLocaleDateString('es-CR', { weekday: 'short' })}
+                  </div>
+                  <div className="text-xs text-gray-400 font-normal">
+                    {new Date(d + 'T12:00:00').toLocaleDateString('es-CR', { day: 'numeric', month: 'short' })}
+                  </div>
+                </th>
+              ))}
+              <th className="text-right px-4 py-3 font-semibold bg-orange-50 text-orange-700 min-w-[80px]">
+                Prom.
+              </th>
+            </tr>
+          </thead>
+          <tbody>
+            {products.map((p) => {
+              const consumptions = dates
+                .map(d => p.days[d]?.consumption ?? null)
+                .filter((v): v is number => v !== null)
+              const avg = consumptions.length > 0
+                ? consumptions.reduce((a, b) => a + b, 0) / consumptions.length
+                : null
+              const maxC = consumptions.length > 0 ? Math.max(...consumptions) : 0
+
+              return (
+                <tr key={p.id} className="border-b border-gray-100 hover:bg-gray-50/50">
+                  <td className="px-4 py-2 font-medium sticky left-0 bg-white hover:bg-gray-50/50 z-10 whitespace-nowrap">
+                    {p.name}
+                    <div className="text-xs text-gray-400">{p.unit}</div>
+                  </td>
+                  {dates.map((d) => {
+                    const day = p.days[d]
+                    const c = day?.consumption ?? null
+                    const intensity = c !== null && maxC > 0 ? c / maxC : 0
+                    const bg = c !== null && c > 0
+                      ? `rgba(249,115,22,${(intensity * 0.3).toFixed(2)})`
+                      : 'transparent'
+                    return (
+                      <td key={d} className="px-2 py-2 text-center align-top" style={{ backgroundColor: bg }}>
+                        {c !== null ? (
+                          <div>
+                            <div className={`font-bold text-base ${c > 0 ? 'text-gray-800' : 'text-gray-300'}`}>
+                              {c.toFixed(1)}
+                            </div>
+                            {day && (day.initial !== null || day.restock !== null || day.final !== null) && (
+                              <div className="text-gray-400 leading-tight mt-0.5" style={{ fontSize: '10px' }}>
+                                {day.initial !== null && <span>I:{day.initial.toFixed(1)} </span>}
+                                {showMid && day.mid !== null && <span>M:{day.mid.toFixed(1)} </span>}
+                                {day.restock !== null && day.restock > 0 && (
+                                  <span className="text-blue-400">+{day.restock.toFixed(1)} </span>
+                                )}
+                                {day.final !== null && <span>F:{day.final.toFixed(1)}</span>}
+                              </div>
+                            )}
+                          </div>
+                        ) : (
+                          <span className="text-gray-200 text-base">—</span>
+                        )}
+                      </td>
+                    )
+                  })}
+                  <td className="px-4 py-2 text-right font-bold bg-orange-50 text-orange-600 whitespace-nowrap">
+                    {avg !== null ? `${avg.toFixed(1)} ${p.unit}` : '—'}
+                  </td>
+                </tr>
+              )
+            })}
+
+            {/* Daily totals row */}
+            <tr className="border-t-2 border-gray-200 bg-gray-50 font-semibold">
+              <td className="px-4 py-2 sticky left-0 bg-gray-50 z-10 text-gray-600 text-xs uppercase tracking-wide">
+                Total día
+              </td>
+              {dates.map((d) => {
+                const total = dailyTotals[d]
+                return (
+                  <td key={d} className="px-2 py-2 text-center text-gray-700">
+                    {total !== null ? total.toFixed(1) : '—'}
+                  </td>
+                )
+              })}
+              <td className="px-4 py-2 bg-orange-50" />
+            </tr>
+          </tbody>
+        </table>
+      </div>
     </div>
   )
 }
