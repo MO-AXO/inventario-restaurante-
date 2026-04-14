@@ -5,7 +5,7 @@ import { prisma } from '@/lib/db'
 import { getSession } from '@/lib/auth'
 import { calcStatus } from '@/lib/utils'
 import { Module } from '@prisma/client'
-import { WEIGHT_MODULES, SMOKED_MODULES, BEVERAGE_SERVICE_MODULES, CARNES_SERVICIO_MODULES } from '@/lib/utils'
+import { WEIGHT_MODULES, SMOKED_MODULES, BEVERAGE_SERVICE_MODULES, CARNES_SERVICIO_MODULES, SALSAS_RESTOCK_MODULES } from '@/lib/utils'
 
 export async function saveInventoryRecord(
   _prevState: { success?: boolean; error?: string } | undefined,
@@ -68,7 +68,24 @@ export async function saveInventoryRecord(
 
     // Si hay recarga, descontar de Bebidas Bodega automáticamente
     if (restock > 0) {
-      await deductFromBodega(product.name, restock, date, session.userId)
+      await deductFromModule(product.name, restock, date, session.userId, 'BEBIDAS_BODEGA')
+    }
+  } else if (SALSAS_RESTOCK_MODULES.includes(module)) {
+    const currentStock = parseFloat(formData.get('currentStock') as string) || 0
+    const restock = parseFloat(formData.get('restock') as string) || 0
+    const status = calcStatus(currentStock, product.minStock)
+    data = { ...data, currentStock, restock, status }
+
+    // Descontar delta de recarga de Salsas y Aderezos Bodega (idempotente)
+    if (restock > 0 || true) {
+      const existingToday = await prisma.dailyRecord.findUnique({
+        where: { productId_date: { productId, date: new Date(date) } },
+      })
+      const oldRestock = existingToday?.restock ?? 0
+      const delta = restock - oldRestock
+      if (delta !== 0) {
+        await deductFromModule(product.name, delta, date, session.userId, 'SALSAS_ADEREZOS_BODEGA')
+      }
     }
   } else {
     // Simple stock
@@ -107,10 +124,17 @@ export async function saveInventoryRecord(
   return { success: true }
 }
 
-// Descuenta del stock de Bebidas Bodega cuando se registra una recarga en Servicio
-async function deductFromBodega(productName: string, qty: number, date: string, userId: string) {
+// Descuenta (o suma si negativo) del stock de un módulo bodega dado.
+// qty puede ser negativo para revertir un descuento previo.
+async function deductFromModule(
+  productName: string,
+  qty: number,
+  date: string,
+  userId: string,
+  targetModule: Module,
+) {
   const bodegaProduct = await prisma.product.findFirst({
-    where: { name: { equals: productName, mode: 'insensitive' }, module: 'BEBIDAS_BODEGA', active: true },
+    where: { name: { equals: productName, mode: 'insensitive' }, module: targetModule, active: true },
   })
   if (!bodegaProduct) return
 
@@ -136,14 +160,14 @@ async function deductFromBodega(productName: string, qty: number, date: string, 
       data: {
         productId: bodegaProduct.id,
         productName: bodegaProduct.name,
-        module: 'BEBIDAS_BODEGA',
+        module: targetModule,
         status,
-        message: `${bodegaProduct.name} en Bodega bajo por recarga de Servicio. Stock: ${currentStock} ${bodegaProduct.unit} (mínimo: ${bodegaProduct.minStock})`,
+        message: `${bodegaProduct.name} bajo por recarga. Stock: ${currentStock} ${bodegaProduct.unit} (mínimo: ${bodegaProduct.minStock})`,
       },
     })
   }
 
-  revalidatePath('/inventario/bebidas_bodega')
+  revalidatePath(`/inventario/${targetModule.toLowerCase()}`)
 }
 
 export async function markAlertRead(alertId: string): Promise<void> {

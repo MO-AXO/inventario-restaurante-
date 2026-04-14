@@ -34,7 +34,7 @@ type ActionState = { success?: boolean; error?: string } | undefined
 type Props = {
   product: Product
   today: string
-  formType: 'carnes_servicio' | 'weight' | 'smoked' | 'beverage_service' | 'simple'
+  formType: 'carnes_servicio' | 'weight' | 'smoked' | 'beverage_service' | 'salsas_restaurante' | 'simple'
   existing: ExistingRecord | null
   action: (state: ActionState, formData: FormData) => Promise<ActionState>
   dayClosed?: boolean
@@ -86,6 +86,8 @@ export default function InventoryForm({ product, today, formType, existing, acti
                   ? `Final: ${existing.finalStock ?? '—'} ${product.unit}`
                   : formType === 'carnes_servicio'
                   ? `Final: ${existing.finalWeight ?? '—'} ${product.unit}`
+                  : formType === 'salsas_restaurante'
+                  ? `${existing.currentStock ?? '—'} ${product.unit}${existing.restock ? ` (+${existing.restock} recarga)` : ''}`
                   : `${existing.currentStock ?? '—'} ${product.unit}`}
               </div>
               <div className="text-xs text-gray-400">
@@ -257,6 +259,42 @@ export default function InventoryForm({ product, today, formType, existing, acti
                     <div className="bg-gray-100 rounded-xl px-3 py-2 flex flex-col justify-center">
                       <span className="text-xs text-gray-600">Consumo</span>
                       <span className="font-bold">{existing.consumption.toFixed(1)} {product.unit}</span>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {formType === 'salsas_restaurante' && (
+                <div className="space-y-3">
+                  <div>
+                    <label className={labelClass}>Stock actual ({product.unit})</label>
+                    <input
+                      type="number"
+                      name="currentStock"
+                      step="0.01"
+                      min="0"
+                      inputMode="decimal"
+                      defaultValue={existing?.currentStock ?? ''}
+                      placeholder={`Mínimo: ${product.minStock}`}
+                      className={inputClass}
+                    />
+                  </div>
+                  <div>
+                    <label className={labelClass}>Recarga desde Bodega ({product.unit})</label>
+                    <input
+                      type="number"
+                      name="restock"
+                      step="0.01"
+                      min="0"
+                      inputMode="decimal"
+                      defaultValue={existing?.restock ?? ''}
+                      placeholder="0 — se descuenta de Bodega"
+                      className={inputClass}
+                    />
+                  </div>
+                  {existing?.restock !== null && existing?.restock !== undefined && existing.restock > 0 && (
+                    <div className="bg-blue-50 border border-blue-200 rounded-xl px-3 py-2 text-xs text-blue-700">
+                      Se descontaron <strong>{existing.restock} {product.unit}</strong> de Salsas y Aderezos Bodega
                     </div>
                   )}
                 </div>
