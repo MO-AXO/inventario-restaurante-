@@ -41,8 +41,7 @@ export default async function ComprasPage() {
   const session = await getSession()
   if (!session || session.role !== 'OWNER') redirect('/dashboard')
 
-  const { today } = await getData()
-  const { products } = await getData()
+  const { products, today } = await getData()
 
   // Build rows for products that need ordering
   const rows: Row[] = []
@@ -85,7 +84,6 @@ export default async function ComprasPage() {
   }
 
   const totalItems = rows.length
-  const criticalItems = rows.filter((r) => r.currentStock !== null && r.currentStock === 0 || r.currentStock === null).length
 
   const dateLabel = new Date(today + 'T12:00:00').toLocaleDateString('es-CR', {
     weekday: 'long', day: 'numeric', month: 'long', year: 'numeric',
