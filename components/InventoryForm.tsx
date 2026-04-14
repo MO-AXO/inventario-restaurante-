@@ -26,6 +26,7 @@ type ExistingRecord = {
   consumption: number | null
   status: string
   notes: string | null
+  updatedAt: Date
 }
 
 type ActionState = { success?: boolean; error?: string } | undefined
@@ -75,13 +76,21 @@ export default function InventoryForm({ product, today, formType, existing, acti
         </div>
         <div className="flex items-center gap-3">
           {existing && (
-            <span className="text-sm text-gray-600 font-medium">
-              {formType === 'smoked'
-                ? `${existing.units ?? '—'} u / ${existing.weightLb ?? '—'} LB`
-                : formType === 'beverage_service'
-                ? `Final: ${existing.finalStock ?? '—'} ${product.unit}`
-                : `${existing.currentStock ?? '—'} ${product.unit}`}
-            </span>
+            <div className="text-right">
+              <div className="text-sm text-gray-600 font-medium">
+                {formType === 'smoked'
+                  ? `${existing.units ?? '—'} u / ${existing.weightLb ?? '—'} LB`
+                  : formType === 'beverage_service'
+                  ? `Final: ${existing.finalStock ?? '—'} ${product.unit}`
+                  : `${existing.currentStock ?? '—'} ${product.unit}`}
+              </div>
+              <div className="text-xs text-gray-400">
+                {new Date(existing.updatedAt).toLocaleString('es-CR', {
+                  month: 'short', day: 'numeric',
+                  hour: '2-digit', minute: '2-digit',
+                })}
+              </div>
+            </div>
           )}
           <span className="text-gray-400 text-lg">{open ? '▲' : '▼'}</span>
         </div>
