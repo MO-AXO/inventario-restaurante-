@@ -4,7 +4,7 @@ import { notFound } from 'next/navigation'
 import { prisma } from '@/lib/db'
 import Navbar from '@/components/Navbar'
 import InventoryForm from '@/components/InventoryForm'
-import { MODULE_LABELS, MODULE_ICONS, todayDate, WEIGHT_MODULES, SMOKED_MODULES, BEVERAGE_SERVICE_MODULES } from '@/lib/utils'
+import { MODULE_LABELS, MODULE_ICONS, todayDate, WEIGHT_MODULES, SMOKED_MODULES, BEVERAGE_SERVICE_MODULES, CARNES_SERVICIO_MODULES } from '@/lib/utils'
 import { Module } from '@prisma/client'
 import { saveInventoryRecord } from '@/app/actions/inventory'
 
@@ -25,7 +25,8 @@ function toModule(str: string): Module | null {
   return valid.includes(upper) ? upper : null
 }
 
-function getFormType(mod: Module): 'weight' | 'smoked' | 'beverage_service' | 'simple' {
+function getFormType(mod: Module): 'carnes_servicio' | 'weight' | 'smoked' | 'beverage_service' | 'simple' {
+  if (CARNES_SERVICIO_MODULES.includes(mod)) return 'carnes_servicio'
   if (WEIGHT_MODULES.includes(mod)) return 'weight'
   if (SMOKED_MODULES.includes(mod)) return 'smoked'
   if (BEVERAGE_SERVICE_MODULES.includes(mod)) return 'beverage_service'

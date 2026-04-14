@@ -8,6 +8,7 @@ import {
   MODULE_LABELS,
   statusColor,
   statusBadge,
+  CARNES_SERVICIO_MODULES,
   WEIGHT_MODULES,
   SMOKED_MODULES,
   BEVERAGE_SERVICE_MODULES,
@@ -29,6 +30,7 @@ export default async function HistorialPage({ params }: Props) {
   })
 
   const mod = product.module as Module
+  const isCarnesServicio = CARNES_SERVICIO_MODULES.includes(mod)
   const isWeight = WEIGHT_MODULES.includes(mod)
   const isSmoked = SMOKED_MODULES.includes(mod)
   const isBeverage = BEVERAGE_SERVICE_MODULES.includes(mod)
@@ -58,6 +60,15 @@ export default async function HistorialPage({ params }: Props) {
               <thead className="bg-gray-50 border-b border-gray-200">
                 <tr>
                   <th className="text-left px-4 py-3 font-semibold">Fecha</th>
+                  {isCarnesServicio && (
+                    <>
+                      <th className="text-right px-3 py-3 font-semibold">Inicial</th>
+                      <th className="text-right px-3 py-3 font-semibold">F. Medio Día</th>
+                      <th className="text-right px-3 py-3 font-semibold">Recarga</th>
+                      <th className="text-right px-3 py-3 font-semibold">Final Día</th>
+                      <th className="text-right px-3 py-3 font-semibold">Consumo</th>
+                    </>
+                  )}
                   {isWeight && (
                     <>
                       <th className="text-right px-3 py-3 font-semibold">Inicial</th>
@@ -80,7 +91,7 @@ export default async function HistorialPage({ params }: Props) {
                       <th className="text-right px-3 py-3 font-semibold">Consumo</th>
                     </>
                   )}
-                  {!isWeight && !isSmoked && !isBeverage && (
+                  {!isCarnesServicio && !isWeight && !isSmoked && !isBeverage && (
                     <th className="text-right px-3 py-3 font-semibold">Stock</th>
                   )}
                   <th className="text-center px-3 py-3 font-semibold">Estado</th>
@@ -96,6 +107,19 @@ export default async function HistorialPage({ params }: Props) {
                         month: 'short',
                       })}
                     </td>
+                    {isCarnesServicio && (
+                      <>
+                        <td className="px-3 py-3 text-right">{r.initialWeight?.toFixed(1) ?? '—'}</td>
+                        <td className="px-3 py-3 text-right">{r.waste1?.toFixed(1) ?? '—'}</td>
+                        <td className="px-3 py-3 text-right">{r.restock ? r.restock.toFixed(1) : '—'}</td>
+                        <td className="px-3 py-3 text-right font-semibold">{r.finalWeight?.toFixed(1) ?? '—'}</td>
+                        <td className="px-3 py-3 text-right font-semibold text-orange-600">
+                          {r.initialWeight !== null && r.finalWeight !== null
+                            ? ((r.initialWeight ?? 0) + (r.restock ?? 0) - (r.finalWeight ?? 0)).toFixed(1)
+                            : '—'}
+                        </td>
+                      </>
+                    )}
                     {isWeight && (
                       <>
                         <td className="px-3 py-3 text-right">{r.initialWeight?.toFixed(1) ?? '—'}</td>
@@ -126,7 +150,7 @@ export default async function HistorialPage({ params }: Props) {
                         <td className="px-3 py-3 text-right">{r.consumption?.toFixed(1) ?? '—'}</td>
                       </>
                     )}
-                    {!isWeight && !isSmoked && !isBeverage && (
+                    {!isCarnesServicio && !isWeight && !isSmoked && !isBeverage && (
                       <td className="px-3 py-3 text-right font-semibold">
                         {r.currentStock?.toFixed(1) ?? '—'}
                       </td>

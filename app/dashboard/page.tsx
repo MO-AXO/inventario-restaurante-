@@ -10,6 +10,7 @@ import {
   statusBadge,
   todayDate,
   SECTION_GROUPS,
+  CARNES_SERVICIO_MODULES,
   WEIGHT_MODULES,
   BEVERAGE_SERVICE_MODULES,
 } from '@/lib/utils'
@@ -75,8 +76,7 @@ export default async function DashboardPage() {
     const mod = r.product.module as Module
     let consumption: number | null = null
 
-    if (WEIGHT_MODULES.includes(mod)) {
-      // consumed = initial + restock - final
+    if (CARNES_SERVICIO_MODULES.includes(mod) || WEIGHT_MODULES.includes(mod)) {
       consumption = (r.initialWeight ?? 0) + (r.restock ?? 0) - (r.finalWeight ?? 0)
     } else if (BEVERAGE_SERVICE_MODULES.includes(mod)) {
       consumption = r.consumption ?? null

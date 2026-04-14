@@ -5,7 +5,7 @@ import { prisma } from '@/lib/db'
 import { getSession } from '@/lib/auth'
 import { calcStatus } from '@/lib/utils'
 import { Module } from '@prisma/client'
-import { WEIGHT_MODULES, SMOKED_MODULES, BEVERAGE_SERVICE_MODULES } from '@/lib/utils'
+import { WEIGHT_MODULES, SMOKED_MODULES, BEVERAGE_SERVICE_MODULES, CARNES_SERVICIO_MODULES } from '@/lib/utils'
 
 export async function saveInventoryRecord(
   _prevState: { success?: boolean; error?: string } | undefined,
@@ -36,7 +36,16 @@ export async function saveInventoryRecord(
     userId: session.userId,
   }
 
-  if (WEIGHT_MODULES.includes(module)) {
+  if (CARNES_SERVICIO_MODULES.includes(module)) {
+    // 4-point weigh: initial / mid-day final / restock / end-of-day final
+    // waste1 stores mid-day final weight; finalWeight is entered directly
+    const initialWeight = parseFloat(formData.get('initialWeight') as string) || 0
+    const midWeight    = parseFloat(formData.get('midWeight') as string) || 0
+    const restock      = parseFloat(formData.get('restock') as string) || 0
+    const finalWeight  = parseFloat(formData.get('finalWeight') as string) || 0
+    const status = calcStatus(finalWeight, product.minStock)
+    data = { ...data, initialWeight, waste1: midWeight, restock, finalWeight, currentStock: finalWeight, status }
+  } else if (WEIGHT_MODULES.includes(module)) {
     const initialWeight = parseFloat(formData.get('initialWeight') as string) || 0
     const waste1 = parseFloat(formData.get('waste1') as string) || 0
     const restock = parseFloat(formData.get('restock') as string) || 0

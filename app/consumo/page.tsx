@@ -5,7 +5,7 @@ import Link from 'next/link'
 import { prisma } from '@/lib/db'
 import { getSession } from '@/lib/auth'
 import { redirect } from 'next/navigation'
-import { MODULE_LABELS, WEIGHT_MODULES, BEVERAGE_SERVICE_MODULES, todayDate } from '@/lib/utils'
+import { MODULE_LABELS, CARNES_SERVICIO_MODULES, WEIGHT_MODULES, BEVERAGE_SERVICE_MODULES, todayDate } from '@/lib/utils'
 import { Module } from '@prisma/client'
 
 type Props = { searchParams: Promise<{ dias?: string }> }
@@ -35,7 +35,7 @@ export default async function ConsumoDiarioPage({ searchParams }: Props) {
       date: { gte: startDate },
       product: {
         active: true,
-        module: { in: [...WEIGHT_MODULES, ...BEVERAGE_SERVICE_MODULES] },
+        module: { in: [...CARNES_SERVICIO_MODULES, ...WEIGHT_MODULES, ...BEVERAGE_SERVICE_MODULES] },
       },
     },
     include: {
@@ -58,7 +58,9 @@ export default async function ConsumoDiarioPage({ searchParams }: Props) {
     }
 
     let consumption = 0
-    if (WEIGHT_MODULES.includes(mod)) {
+    if (CARNES_SERVICIO_MODULES.includes(mod)) {
+      consumption = (r.initialWeight ?? 0) + (r.restock ?? 0) - (r.finalWeight ?? 0)
+    } else if (WEIGHT_MODULES.includes(mod)) {
       consumption = (r.initialWeight ?? 0) + (r.restock ?? 0) - (r.finalWeight ?? 0)
     } else if (BEVERAGE_SERVICE_MODULES.includes(mod)) {
       consumption = r.consumption ?? 0

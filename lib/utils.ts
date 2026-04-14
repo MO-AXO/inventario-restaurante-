@@ -116,8 +116,11 @@ export const SECTION_GROUPS: { label: string; icon: string; modules: Module[] }[
   },
 ]
 
-// Which modules use weight tracking (initial/waste/restock/final)
-export const WEIGHT_MODULES: Module[] = ['CARNES_PREPARADAS', 'CARNE_CRUDA', 'VERDURAS']
+// Carnes para Servicio — 4-point weigh: initial / mid-day final / restock / end-of-day final
+export const CARNES_SERVICIO_MODULES: Module[] = ['CARNES_PREPARADAS']
+
+// Which modules use weight tracking (initial/waste1/restock/waste2 → calculated final)
+export const WEIGHT_MODULES: Module[] = ['CARNE_CRUDA', 'VERDURAS']
 
 // Which modules track smoked meats (units + weight)
 export const SMOKED_MODULES: Module[] = ['CARNES_AHUMADAS']

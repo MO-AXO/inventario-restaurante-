@@ -34,7 +34,7 @@ type ActionState = { success?: boolean; error?: string } | undefined
 type Props = {
   product: Product
   today: string
-  formType: 'weight' | 'smoked' | 'beverage_service' | 'simple'
+  formType: 'carnes_servicio' | 'weight' | 'smoked' | 'beverage_service' | 'simple'
   existing: ExistingRecord | null
   action: (state: ActionState, formData: FormData) => Promise<ActionState>
   dayClosed?: boolean
@@ -84,6 +84,8 @@ export default function InventoryForm({ product, today, formType, existing, acti
                   ? `${existing.units ?? '—'} u / ${existing.weightLb ?? '—'} LB`
                   : formType === 'beverage_service'
                   ? `Final: ${existing.finalStock ?? '—'} ${product.unit}`
+                  : formType === 'carnes_servicio'
+                  ? `Final: ${existing.finalWeight ?? '—'} ${product.unit}`
                   : `${existing.currentStock ?? '—'} ${product.unit}`}
               </div>
               <div className="text-xs text-gray-400">
@@ -135,6 +137,43 @@ export default function InventoryForm({ product, today, formType, existing, acti
             )}
 
             <div className="pt-3">
+              {formType === 'carnes_servicio' && (
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className={labelClass}>Peso Inicial ({product.unit})</label>
+                    <input type="number" name="initialWeight" step="0.01" min="0" inputMode="decimal"
+                      defaultValue={existing?.initialWeight ?? ''} className={inputClass} />
+                  </div>
+                  <div>
+                    <label className={labelClass}>Peso Final Medio Día ({product.unit})</label>
+                    <input type="number" name="midWeight" step="0.01" min="0" inputMode="decimal"
+                      defaultValue={existing?.waste1 ?? ''} className={inputClass} />
+                  </div>
+                  <div>
+                    <label className={labelClass}>Peso Recarga ({product.unit})</label>
+                    <input type="number" name="restock" step="0.01" min="0" inputMode="decimal"
+                      defaultValue={existing?.restock ?? ''} placeholder="0" className={inputClass} />
+                  </div>
+                  <div>
+                    <label className={labelClass}>Peso Final del Día ({product.unit})</label>
+                    <input type="number" name="finalWeight" step="0.01" min="0" inputMode="decimal"
+                      defaultValue={existing?.finalWeight ?? ''} className={inputClass} />
+                  </div>
+                  {existing?.initialWeight !== null && existing?.finalWeight !== null && (
+                    <div className="col-span-2 bg-gray-100 rounded-xl px-3 py-2">
+                      <span className="text-xs text-gray-600">Consumo del día: </span>
+                      <span className="font-bold">
+                        {(
+                          (existing.initialWeight ?? 0) +
+                          (existing.restock ?? 0) -
+                          (existing.finalWeight ?? 0)
+                        ).toFixed(2)} {product.unit}
+                      </span>
+                    </div>
+                  )}
+                </div>
+              )}
+
               {formType === 'simple' && (
                 <div>
                   <label className={labelClass}>Stock actual ({product.unit})</label>
