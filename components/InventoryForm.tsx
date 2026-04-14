@@ -78,6 +78,11 @@ export default function InventoryForm({ product, today, formType, existing, acti
   const [open, setOpen] = useState(!existing)
   const [state, formAction, pending] = useActionState(action, undefined)
 
+  // Live calculation for beverage_service: finalStock = initialStock + restock
+  const [initStock, setInitStock] = useState<number>(existing?.initialStock ?? 0)
+  const [restockStock, setRestockStock] = useState<number>(existing?.restock ?? 0)
+  const computedFinal = initStock + restockStock
+
   // Compute status live from stock + minStock so color always reflects new thresholds
   const stock = effectiveStock(formType, existing)
   const liveStatus = existing ? calcStatus(stock, product.minStock) : undefined
@@ -107,7 +112,7 @@ export default function InventoryForm({ product, today, formType, existing, acti
                 {formType === 'smoked'
                   ? `${existing.units ?? '—'} u / ${existing.weightLb ?? '—'} LB`
                   : formType === 'beverage_service'
-                  ? `Final: ${existing.finalStock ?? '—'} ${product.unit}`
+                  ? `Final: ${existing.finalStock ?? '—'} ${product.unit}${existing.initialStock !== null ? ` (${existing.initialStock ?? 0}+${existing.restock ?? 0})` : ''}`
                   : formType === 'carnes_servicio'
                   ? `Final: ${existing.finalWeight ?? '—'} ${product.unit}`
                   : formType === 'salsas_restaurante'
@@ -266,25 +271,36 @@ export default function InventoryForm({ product, today, formType, existing, acti
                 <div className="grid grid-cols-2 gap-3">
                   <div>
                     <label className={labelClass}>Inv. inicial ({product.unit})</label>
-                    <input type="number" name="initialStock" step="0.01" min="0" inputMode="decimal"
-                      defaultValue={existing?.initialStock ?? ''} className={inputClass} />
+                    <input
+                      type="number"
+                      name="initialStock"
+                      step="0.01"
+                      min="0"
+                      inputMode="decimal"
+                      value={initStock || ''}
+                      onChange={(e) => setInitStock(parseFloat(e.target.value) || 0)}
+                      className={inputClass}
+                    />
                   </div>
                   <div>
                     <label className={labelClass}>Recarga ({product.unit})</label>
-                    <input type="number" name="restock" step="0.01" min="0" inputMode="decimal"
-                      defaultValue={existing?.restock ?? ''} placeholder="0" className={inputClass} />
+                    <input
+                      type="number"
+                      name="restock"
+                      step="0.01"
+                      min="0"
+                      inputMode="decimal"
+                      value={restockStock || ''}
+                      onChange={(e) => setRestockStock(parseFloat(e.target.value) || 0)}
+                      placeholder="0"
+                      className={inputClass}
+                    />
                   </div>
-                  <div>
-                    <label className={labelClass}>Inv. final ({product.unit})</label>
-                    <input type="number" name="finalStock" step="0.01" min="0" inputMode="decimal"
-                      defaultValue={existing?.finalStock ?? ''} className={inputClass} />
+                  <input type="hidden" name="finalStock" value={computedFinal} />
+                  <div className="col-span-2 bg-gray-100 rounded-xl px-3 py-2">
+                    <span className="text-xs text-gray-600">Inv. final (inicial + recarga): </span>
+                    <span className="font-bold">{computedFinal.toFixed(1)} {product.unit}</span>
                   </div>
-                  {existing?.consumption !== null && existing?.consumption !== undefined && (
-                    <div className="bg-gray-100 rounded-xl px-3 py-2 flex flex-col justify-center">
-                      <span className="text-xs text-gray-600">Consumo</span>
-                      <span className="font-bold">{existing.consumption.toFixed(1)} {product.unit}</span>
-                    </div>
-                  )}
                 </div>
               )}
 
