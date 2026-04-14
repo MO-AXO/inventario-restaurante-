@@ -1,12 +1,13 @@
 export const dynamic = 'force-dynamic'
 
 import Navbar from '@/components/Navbar'
+import Link from 'next/link'
 import { prisma } from '@/lib/db'
 import { getSession } from '@/lib/auth'
 import { redirect } from 'next/navigation'
 import { MODULE_LABELS } from '@/lib/utils'
 import { Module } from '@prisma/client'
-import { createUser, updateProductMin, createProduct } from '@/app/actions/admin'
+import { createUser, createProduct, toggleProductActive, toggleUserActive } from '@/app/actions/admin'
 
 async function getData() {
   const [products, users] = await Promise.all([
@@ -22,6 +23,9 @@ export default async function AdminPage() {
 
   const { products, users } = await getData()
   const modules = Object.keys(MODULE_LABELS) as Module[]
+
+  const activeProducts = products.filter((p) => p.active)
+  const inactiveProducts = products.filter((p) => !p.active)
 
   return (
     <div className="min-h-screen flex flex-col">
@@ -50,10 +54,18 @@ export default async function AdminPage() {
             <div className="mt-4 space-y-2">
               {users.map((u) => (
                 <div key={u.id} className="flex justify-between items-center text-sm border border-gray-100 rounded-xl px-3 py-2">
-                  <span className="font-medium">{u.name}</span>
-                  <span className={`text-xs px-2 py-0.5 rounded-full ${u.role === 'OWNER' ? 'bg-purple-100 text-purple-700' : 'bg-gray-100 text-gray-600'}`}>
-                    {u.role === 'OWNER' ? 'Dueño' : 'Empleado'}
-                  </span>
+                  <span className={`font-medium ${!u.active ? 'text-gray-400 line-through' : ''}`}>{u.name}</span>
+                  <div className="flex items-center gap-2">
+                    <span className={`text-xs px-2 py-0.5 rounded-full ${u.role === 'OWNER' ? 'bg-purple-100 text-purple-700' : 'bg-gray-100 text-gray-600'}`}>
+                      {u.role === 'OWNER' ? 'Dueño' : 'Empleado'}
+                    </span>
+                    <form action={toggleUserActive}>
+                      <input type="hidden" name="userId" value={u.id} />
+                      <button type="submit" className={`text-xs px-2 py-0.5 rounded-full font-medium ${u.active ? 'bg-red-50 text-red-600 hover:bg-red-100' : 'bg-green-50 text-green-600 hover:bg-green-100'}`}>
+                        {u.active ? 'Desactivar' : 'Reactivar'}
+                      </button>
+                    </form>
+                  </div>
                 </div>
               ))}
             </div>
@@ -83,32 +95,63 @@ export default async function AdminPage() {
           </form>
         </section>
 
-        {/* Products table - edit minimums */}
+        {/* Active products */}
         <section className="bg-white rounded-2xl border border-gray-200 p-5">
-          <h2 className="font-bold text-lg mb-4">Productos y mínimos de stock</h2>
-          <div className="space-y-1 max-h-96 overflow-y-auto">
-            {products.map((p) => (
-              <form key={p.id} action={updateProductMin} className="flex items-center gap-2 border border-gray-100 rounded-xl px-3 py-2">
-                <input type="hidden" name="productId" value={p.id} />
-                <div className="flex-1">
+          <h2 className="font-bold text-lg mb-4">Productos activos ({activeProducts.length})</h2>
+          <div className="space-y-1 max-h-[500px] overflow-y-auto">
+            {activeProducts.map((p) => (
+              <div key={p.id} className="flex items-center gap-2 border border-gray-100 rounded-xl px-3 py-2">
+                <div className="flex-1 min-w-0">
                   <span className="text-sm font-medium">{p.name}</span>
                   <span className="text-xs text-gray-400 ml-2">{MODULE_LABELS[p.module as Module]}</span>
+                  <span className="text-xs text-gray-300 ml-1">· {p.category}</span>
                 </div>
-                <input
-                  name="minStock"
-                  type="number"
-                  step="0.01"
-                  defaultValue={p.minStock}
-                  className="w-24 border border-gray-200 rounded-lg px-2 py-1 text-sm text-right"
-                />
-                <span className="text-xs text-gray-400">{p.unit}</span>
-                <button type="submit" className="text-xs bg-gray-100 hover:bg-gray-200 px-2 py-1 rounded-lg">
-                  ✓
-                </button>
-              </form>
+                <span className="text-xs text-gray-400 shrink-0">{p.minStock} {p.unit}</span>
+                <Link
+                  href={`/admin/productos/${p.id}`}
+                  className="text-xs bg-gray-100 hover:bg-gray-200 px-2 py-1 rounded-lg shrink-0 font-medium"
+                >
+                  Editar
+                </Link>
+                <form action={toggleProductActive}>
+                  <input type="hidden" name="productId" value={p.id} />
+                  <button type="submit" className="text-xs bg-red-50 hover:bg-red-100 text-red-600 px-2 py-1 rounded-lg shrink-0 font-medium">
+                    Desactivar
+                  </button>
+                </form>
+              </div>
             ))}
           </div>
         </section>
+
+        {/* Inactive products */}
+        {inactiveProducts.length > 0 && (
+          <section className="bg-white rounded-2xl border border-gray-200 p-5">
+            <h2 className="font-bold text-lg mb-4 text-gray-400">Productos desactivados ({inactiveProducts.length})</h2>
+            <div className="space-y-1 max-h-60 overflow-y-auto">
+              {inactiveProducts.map((p) => (
+                <div key={p.id} className="flex items-center gap-2 border border-gray-100 rounded-xl px-3 py-2 opacity-60">
+                  <div className="flex-1 min-w-0">
+                    <span className="text-sm font-medium line-through text-gray-400">{p.name}</span>
+                    <span className="text-xs text-gray-300 ml-2">{MODULE_LABELS[p.module as Module]}</span>
+                  </div>
+                  <Link
+                    href={`/admin/productos/${p.id}`}
+                    className="text-xs bg-gray-100 hover:bg-gray-200 px-2 py-1 rounded-lg shrink-0 font-medium"
+                  >
+                    Editar
+                  </Link>
+                  <form action={toggleProductActive}>
+                    <input type="hidden" name="productId" value={p.id} />
+                    <button type="submit" className="text-xs bg-green-50 hover:bg-green-100 text-green-600 px-2 py-1 rounded-lg shrink-0 font-medium">
+                      Reactivar
+                    </button>
+                  </form>
+                </div>
+              ))}
+            </div>
+          </section>
+        )}
       </main>
     </div>
   )

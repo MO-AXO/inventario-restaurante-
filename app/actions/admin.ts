@@ -1,6 +1,7 @@
 'use server'
 
 import { revalidatePath } from 'next/cache'
+import { redirect } from 'next/navigation'
 import { prisma } from '@/lib/db'
 import { getSession } from '@/lib/auth'
 import { hashPin } from '@/lib/auth'
@@ -44,4 +45,50 @@ export async function createProduct(formData: FormData): Promise<void> {
   await prisma.product.create({ data: { name, category, module, unit, minStock } })
   revalidatePath('/admin')
   revalidatePath(`/inventario/${module.toLowerCase()}`)
+}
+
+export async function updateProduct(formData: FormData): Promise<void> {
+  const session = await getSession()
+  if (!session || session.role !== 'OWNER') return
+
+  const productId = formData.get('productId') as string
+  const name = formData.get('name') as string
+  const category = formData.get('category') as string
+  const module = formData.get('module') as Module
+  const unit = formData.get('unit') as string
+  const minStock = parseFloat(formData.get('minStock') as string) || 0
+
+  await prisma.product.update({
+    where: { id: productId },
+    data: { name, category, module, unit, minStock },
+  })
+  revalidatePath('/admin')
+  revalidatePath('/dashboard')
+  revalidatePath(`/inventario/${module.toLowerCase()}`)
+  redirect('/admin')
+}
+
+export async function toggleProductActive(formData: FormData): Promise<void> {
+  const session = await getSession()
+  if (!session || session.role !== 'OWNER') return
+
+  const productId = formData.get('productId') as string
+  const current = await prisma.product.findUnique({ where: { id: productId }, select: { active: true } })
+  if (!current) return
+
+  await prisma.product.update({ where: { id: productId }, data: { active: !current.active } })
+  revalidatePath('/admin')
+  revalidatePath('/dashboard')
+}
+
+export async function toggleUserActive(formData: FormData): Promise<void> {
+  const session = await getSession()
+  if (!session || session.role !== 'OWNER') return
+
+  const userId = formData.get('userId') as string
+  const current = await prisma.user.findUnique({ where: { id: userId }, select: { active: true } })
+  if (!current) return
+
+  await prisma.user.update({ where: { id: userId }, data: { active: !current.active } })
+  revalidatePath('/admin')
 }
