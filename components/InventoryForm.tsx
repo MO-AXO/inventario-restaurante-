@@ -214,6 +214,20 @@ export default function InventoryForm({ product, today, formType, existing, acti
             />
           </div>
 
+          <div className="flex items-center gap-2 bg-gray-50 border border-gray-200 rounded-xl px-3 py-2">
+            <span className="text-xs text-gray-500 shrink-0">Stock mínimo:</span>
+            <input
+              type="number"
+              name="minStock"
+              step="0.01"
+              min="0"
+              inputMode="decimal"
+              defaultValue={product.minStock}
+              className="flex-1 bg-transparent text-sm font-medium focus:outline-none text-right"
+            />
+            <span className="text-xs text-gray-400 shrink-0">{product.unit}</span>
+          </div>
+
           <button
             type="submit"
             disabled={pending}

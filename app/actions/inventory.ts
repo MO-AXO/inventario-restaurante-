@@ -22,6 +22,13 @@ export async function saveInventoryRecord(
   const product = await prisma.product.findUnique({ where: { id: productId } })
   if (!product) return { error: 'Producto no encontrado' }
 
+  // Actualizar stock mínimo si cambió
+  const newMinStock = parseFloat(formData.get('minStock') as string)
+  if (!isNaN(newMinStock) && newMinStock !== product.minStock) {
+    await prisma.product.update({ where: { id: productId }, data: { minStock: newMinStock } })
+    product.minStock = newMinStock
+  }
+
   let data: Record<string, unknown> = {
     productId,
     date: new Date(date),
