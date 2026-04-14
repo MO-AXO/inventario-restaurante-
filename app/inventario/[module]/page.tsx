@@ -39,7 +39,8 @@ export default async function InventarioModulePage({ params }: Props) {
 
   const today = todayDate()
 
-  const products = await prisma.product.findMany({
+  const [products, dayClose] = await Promise.all([
+    prisma.product.findMany({
     where: { module: mod, active: true },
     include: {
       records: {
@@ -47,9 +48,12 @@ export default async function InventarioModulePage({ params }: Props) {
         take: 1,
       },
     },
-    orderBy: [{ category: 'asc' }, { name: 'asc' }],
-  })
+      orderBy: [{ category: 'asc' }, { name: 'asc' }],
+    }),
+    prisma.dayClose.findUnique({ where: { date: new Date(today) } }),
+  ])
 
+  const isClosed = !!dayClose
   const formType = getFormType(mod)
 
   return (
@@ -70,6 +74,11 @@ export default async function InventarioModulePage({ params }: Props) {
           </div>
         ) : (
           <div className="space-y-3">
+            {isClosed && (
+              <div className="bg-gray-100 border border-gray-300 rounded-2xl px-4 py-3 text-sm text-gray-600 text-center font-medium">
+                Día cerrado — solo lectura
+              </div>
+            )}
             {products.map((product) => (
               <InventoryForm
                 key={product.id}
@@ -85,6 +94,7 @@ export default async function InventarioModulePage({ params }: Props) {
                 formType={formType}
                 existing={product.records[0] ?? null}
                 action={saveInventoryRecord}
+                dayClosed={isClosed}
               />
             ))}
           </div>

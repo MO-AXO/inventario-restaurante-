@@ -119,3 +119,10 @@ model Alert {
   read        Boolean     @default(false)
   createdAt   DateTime    @default(now())
 }
+
+model DayClose {
+  id           String   @id @default(cuid())
+  date         DateTime @unique @db.Date
+  closedAt     DateTime @default(now())
+  closedByName String
+}

@@ -3,13 +3,21 @@ export const dynamic = 'force-dynamic'
 import Navbar from '@/components/Navbar'
 import { prisma } from '@/lib/db'
 import { MODULE_LABELS } from '@/lib/utils'
-import { markAlertRead, markAllAlertsRead } from '@/app/actions/inventory'
+import { markAlertRead, markAllAlertsRead, deleteReadAlerts } from '@/app/actions/inventory'
 import { Module, StockStatus } from '@prisma/client'
 
 async function getAlerts() {
-  return prisma.alert.findMany({
+  const all = await prisma.alert.findMany({
     orderBy: { createdAt: 'desc' },
-    take: 100,
+    take: 500,
+  })
+
+  // Keep only the most recent alert per product
+  const seen = new Set<string>()
+  return all.filter((a) => {
+    if (seen.has(a.productId)) return false
+    seen.add(a.productId)
+    return true
   })
 }
 
@@ -21,6 +29,7 @@ function statusStyle(s: StockStatus) {
 export default async function AlertasPage() {
   const alerts = await getAlerts()
   const unread = alerts.filter((a) => !a.read).length
+  const hasRead = alerts.some((a) => a.read)
 
   return (
     <div className="min-h-screen flex flex-col">
@@ -31,21 +40,33 @@ export default async function AlertasPage() {
             <h1 className="text-xl font-bold">Alertas</h1>
             <p className="text-sm text-gray-500">{unread} sin leer</p>
           </div>
-          {unread > 0 && (
-            <form action={markAllAlertsRead}>
-              <button
-                type="submit"
-                className="text-sm bg-gray-100 hover:bg-gray-200 px-4 py-2 rounded-xl font-medium transition"
-              >
-                Marcar todas como leídas
-              </button>
-            </form>
-          )}
+          <div className="flex gap-2">
+            {unread > 0 && (
+              <form action={markAllAlertsRead}>
+                <button
+                  type="submit"
+                  className="text-sm bg-gray-100 hover:bg-gray-200 px-4 py-2 rounded-xl font-medium transition"
+                >
+                  Marcar todas leídas
+                </button>
+              </form>
+            )}
+            {hasRead && (
+              <form action={deleteReadAlerts}>
+                <button
+                  type="submit"
+                  className="text-sm bg-red-50 hover:bg-red-100 text-red-600 px-4 py-2 rounded-xl font-medium transition"
+                >
+                  Limpiar leídas
+                </button>
+              </form>
+            )}
+          </div>
         </div>
 
         {alerts.length === 0 && (
           <div className="bg-white rounded-2xl border border-gray-200 p-8 text-center text-gray-500">
-            No hay alertas. ¡Todo bajo control! ✅
+            No hay alertas. ¡Todo bajo control!
           </div>
         )}
 
@@ -73,10 +94,7 @@ export default async function AlertasPage() {
               </div>
               {!alert.read && (
                 <form action={markAlertRead.bind(null, alert.id)}>
-                  <button
-                    type="submit"
-                    className="text-xs underline shrink-0"
-                  >
+                  <button type="submit" className="text-xs underline shrink-0">
                     Leer
                   </button>
                 </form>

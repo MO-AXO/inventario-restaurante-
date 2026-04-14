@@ -3,34 +3,56 @@ export const dynamic = 'force-dynamic'
 import Link from 'next/link'
 import { prisma } from '@/lib/db'
 import Navbar from '@/components/Navbar'
-import { MODULE_LABELS, MODULE_ICONS, statusColor, statusBadge, todayDate, SECTION_GROUPS } from '@/lib/utils'
+import {
+  MODULE_LABELS,
+  MODULE_ICONS,
+  statusColor,
+  statusBadge,
+  todayDate,
+  SECTION_GROUPS,
+  WEIGHT_MODULES,
+  BEVERAGE_SERVICE_MODULES,
+} from '@/lib/utils'
 import { Module, StockStatus } from '@prisma/client'
 import { getSession } from '@/lib/auth'
+import { closeDayAction, reopenDayAction } from '@/app/actions/dayclose'
 
 async function getDashboardData() {
   const today = todayDate()
+  const sevenDaysAgo = new Date(today)
+  sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7)
 
-  const products = await prisma.product.findMany({
-    where: { active: true },
-    include: {
-      records: {
-        where: { date: new Date(today) },
-        orderBy: { createdAt: 'desc' },
-        take: 1,
+  const [products, alertCount, weekRecords, dayClose] = await Promise.all([
+    prisma.product.findMany({
+      where: { active: true },
+      include: {
+        records: {
+          where: { date: new Date(today) },
+          orderBy: { createdAt: 'desc' },
+          take: 1,
+        },
       },
-    },
-    orderBy: [{ module: 'asc' }, { category: 'asc' }, { name: 'asc' }],
-  })
+      orderBy: [{ module: 'asc' }, { category: 'asc' }, { name: 'asc' }],
+    }),
+    prisma.alert.count({ where: { read: false } }),
+    prisma.dailyRecord.findMany({
+      where: { date: { gte: sevenDaysAgo } },
+      include: {
+        product: { select: { name: true, module: true, unit: true, active: true } },
+      },
+    }),
+    prisma.dayClose.findUnique({ where: { date: new Date(today) } }),
+  ])
 
-  const alerts = await prisma.alert.count({ where: { read: false } })
-
-  return { products, alerts }
+  return { products, alertCount, weekRecords, dayClose }
 }
 
 export default async function DashboardPage() {
   const session = await getSession()
   const isOwner = session?.role === 'OWNER'
-  const { products, alerts } = await getDashboardData()
+  const { products, alertCount, weekRecords, dayClose } = await getDashboardData()
+
+  const isClosed = !!dayClose
 
   const criticalCount = products.filter((p) => p.records[0]?.status === 'CRITICO').length
   const lowCount = products.filter((p) => p.records[0]?.status === 'BAJO').length
@@ -44,13 +66,76 @@ export default async function DashboardPage() {
     return acc
   }, {} as Record<string, typeof products>)
 
+  // Consumo promedio últimos 7 días (weight + beverage modules only)
+  type ConsEntry = { name: string; module: Module; unit: string; total: number; days: number }
+  const consumptionMap: Record<string, ConsEntry> = {}
+
+  for (const r of weekRecords) {
+    if (!r.product.active) continue
+    const mod = r.product.module as Module
+    let consumption: number | null = null
+
+    if (WEIGHT_MODULES.includes(mod)) {
+      consumption = (r.waste1 ?? 0) + (r.waste2 ?? 0)
+    } else if (BEVERAGE_SERVICE_MODULES.includes(mod)) {
+      consumption = r.consumption ?? null
+    }
+
+    if (consumption !== null && consumption > 0) {
+      if (!consumptionMap[r.productId]) {
+        consumptionMap[r.productId] = {
+          name: r.product.name,
+          module: mod,
+          unit: r.product.unit,
+          total: 0,
+          days: 0,
+        }
+      }
+      consumptionMap[r.productId].total += consumption
+      consumptionMap[r.productId].days += 1
+    }
+  }
+
+  const topConsumers = Object.values(consumptionMap)
+    .map((p) => ({ ...p, avgDaily: p.total / p.days }))
+    .sort((a, b) => b.avgDaily - a.avgDaily)
+    .slice(0, 10)
+
   return (
     <div className="min-h-screen flex flex-col">
       <Navbar />
       <main className="flex-1 p-4 max-w-5xl mx-auto w-full">
-        <div className="mb-6">
-          <h1 className="text-2xl font-bold text-gray-900">{isOwner ? 'Dashboard' : 'Inventario'}</h1>
-          <p className="text-gray-500 text-sm">{new Date().toLocaleDateString('es-CR', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}</p>
+        <div className="mb-6 flex items-start justify-between gap-4">
+          <div>
+            <h1 className="text-2xl font-bold text-gray-900">{isOwner ? 'Dashboard' : 'Inventario'}</h1>
+            <p className="text-gray-500 text-sm">
+              {new Date().toLocaleDateString('es-CR', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
+            </p>
+          </div>
+          {/* Close / Reopen day — owner only */}
+          {isOwner && (
+            isClosed ? (
+              <div className="flex items-center gap-2 shrink-0">
+                <span className="text-sm bg-gray-200 text-gray-700 px-3 py-1.5 rounded-xl font-medium">
+                  Día cerrado por {dayClose.closedByName}
+                </span>
+                <form action={reopenDayAction}>
+                  <button type="submit" className="text-sm text-orange-500 underline">
+                    Reabrir
+                  </button>
+                </form>
+              </div>
+            ) : (
+              <form action={closeDayAction}>
+                <button
+                  type="submit"
+                  className="text-sm bg-gray-800 hover:bg-gray-900 text-white px-4 py-2 rounded-xl font-medium transition shrink-0"
+                >
+                  Cerrar día
+                </button>
+              </form>
+            )
+          )}
         </div>
 
         {/* Summary Cards — owner only */}
@@ -107,7 +192,7 @@ export default async function DashboardPage() {
 
         {/* Critical & Low items — owner only */}
         {isOwner && (criticalCount > 0 || lowCount > 0) && (
-          <div>
+          <div className="mb-6">
             <h2 className="text-lg font-semibold mb-3">Requieren atención</h2>
             <div className="bg-white rounded-2xl border border-gray-200 overflow-hidden">
               <table className="w-full text-sm">
@@ -138,6 +223,39 @@ export default async function DashboardPage() {
                         </tr>
                       )
                     })}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
+
+        {/* Consumo promedio últimos 7 días — owner only */}
+        {isOwner && topConsumers.length > 0 && (
+          <div className="mb-6">
+            <h2 className="text-lg font-semibold mb-3">Consumo promedio (últimos 7 días)</h2>
+            <div className="bg-white rounded-2xl border border-gray-200 overflow-hidden">
+              <table className="w-full text-sm">
+                <thead className="bg-gray-50 border-b border-gray-200">
+                  <tr>
+                    <th className="text-left px-4 py-3 font-semibold">Producto</th>
+                    <th className="text-left px-4 py-3 font-semibold hidden sm:table-cell">Módulo</th>
+                    <th className="text-right px-4 py-3 font-semibold">Prom. diario</th>
+                    <th className="text-right px-4 py-3 font-semibold">Total 7d</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {topConsumers.map((p, i) => (
+                    <tr key={i} className="border-b border-gray-100 last:border-0">
+                      <td className="px-4 py-3 font-medium">{p.name}</td>
+                      <td className="px-4 py-3 text-gray-500 hidden sm:table-cell">{MODULE_LABELS[p.module]}</td>
+                      <td className="px-4 py-3 text-right font-semibold">
+                        {p.avgDaily.toFixed(1)} {p.unit}
+                      </td>
+                      <td className="px-4 py-3 text-right text-gray-500">
+                        {p.total.toFixed(1)} {p.unit}
+                      </td>
+                    </tr>
+                  ))}
                 </tbody>
               </table>
             </div>

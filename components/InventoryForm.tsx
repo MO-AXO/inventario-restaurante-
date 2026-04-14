@@ -2,6 +2,7 @@
 
 import { useActionState, useState } from 'react'
 import { Module } from '@prisma/client'
+import Link from 'next/link'
 
 type Product = {
   id: string
@@ -36,6 +37,7 @@ type Props = {
   formType: 'weight' | 'smoked' | 'beverage_service' | 'simple'
   existing: ExistingRecord | null
   action: (state: ActionState, formData: FormData) => Promise<ActionState>
+  dayClosed?: boolean
 }
 
 function statusClass(s: string | undefined) {
@@ -52,7 +54,7 @@ function statusDot(s: string | undefined) {
   return <span className="w-3 h-3 rounded-full bg-gray-300 inline-block" />
 }
 
-export default function InventoryForm({ product, today, formType, existing, action }: Props) {
+export default function InventoryForm({ product, today, formType, existing, action, dayClosed }: Props) {
   const [open, setOpen] = useState(!existing)
   const [state, formAction, pending] = useActionState(action, undefined)
 
@@ -62,18 +64,18 @@ export default function InventoryForm({ product, today, formType, existing, acti
   return (
     <div className={`rounded-2xl border-2 overflow-hidden transition ${statusClass(existing?.status)}`}>
       {/* Header - always visible */}
-      <button
-        type="button"
-        className="w-full flex items-center justify-between px-4 py-3 text-left"
-        onClick={() => setOpen(!open)}
-      >
-        <div className="flex items-center gap-2">
+      <div className="w-full flex items-center justify-between px-4 py-3">
+        <button
+          type="button"
+          className="flex-1 flex items-center gap-2 text-left"
+          onClick={() => setOpen(!open)}
+        >
           {statusDot(existing?.status)}
           <div>
             <span className="font-semibold">{product.name}</span>
             <span className="text-xs text-gray-500 ml-2">{product.category}</span>
           </div>
-        </div>
+        </button>
         <div className="flex items-center gap-3">
           {existing && (
             <div className="text-right">
@@ -92,150 +94,170 @@ export default function InventoryForm({ product, today, formType, existing, acti
               </div>
             </div>
           )}
-          <span className="text-gray-400 text-lg">{open ? '▲' : '▼'}</span>
+          {dayClosed && (
+            <span className="text-xs bg-gray-200 text-gray-600 px-2 py-0.5 rounded-full shrink-0">
+              Cerrado
+            </span>
+          )}
+          <Link
+            href={`/historial/${product.id}`}
+            className="text-xs text-orange-500 underline shrink-0"
+            onClick={(e) => e.stopPropagation()}
+          >
+            Historial
+          </Link>
+          <button type="button" onClick={() => setOpen(!open)} className="text-gray-400 text-lg">
+            {open ? '▲' : '▼'}
+          </button>
         </div>
-      </button>
+      </div>
 
       {/* Form - collapsible */}
       {open && (
-        <form
-          action={formAction}
-          className="px-4 pb-4 space-y-3 border-t border-gray-200/60"
-        >
-          <input type="hidden" name="productId" value={product.id} />
-          <input type="hidden" name="date" value={today} />
-          <input type="hidden" name="module" value={product.module} />
-
-          {state?.error && (
-            <p className="text-sm text-red-600 bg-red-50 rounded-lg px-3 py-2">{state.error}</p>
-          )}
-          {state?.success && (
-            <p className="text-sm text-green-700 bg-green-50 rounded-lg px-3 py-2">✓ Guardado</p>
-          )}
-
-          <div className="pt-3">
-            {formType === 'simple' && (
-              <div>
-                <label className={labelClass}>Stock actual ({product.unit})</label>
-                <input
-                  type="number"
-                  name="currentStock"
-                  step="0.01"
-                  min="0"
-                  inputMode="decimal"
-                  defaultValue={existing?.currentStock ?? ''}
-                  placeholder={`Mínimo: ${product.minStock}`}
-                  className={inputClass}
-                />
-              </div>
-            )}
-
-            {formType === 'weight' && (
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className={labelClass}>Peso inicial ({product.unit})</label>
-                  <input type="number" name="initialWeight" step="0.01" min="0" inputMode="decimal"
-                    defaultValue={existing?.initialWeight ?? ''} className={inputClass} />
-                </div>
-                <div>
-                  <label className={labelClass}>Merma 1 ({product.unit})</label>
-                  <input type="number" name="waste1" step="0.01" min="0" inputMode="decimal"
-                    defaultValue={existing?.waste1 ?? ''} placeholder="0" className={inputClass} />
-                </div>
-                <div>
-                  <label className={labelClass}>Recarga ({product.unit})</label>
-                  <input type="number" name="restock" step="0.01" min="0" inputMode="decimal"
-                    defaultValue={existing?.restock ?? ''} placeholder="0" className={inputClass} />
-                </div>
-                <div>
-                  <label className={labelClass}>Merma 2 ({product.unit})</label>
-                  <input type="number" name="waste2" step="0.01" min="0" inputMode="decimal"
-                    defaultValue={existing?.waste2 ?? ''} placeholder="0" className={inputClass} />
-                </div>
-                {existing?.finalWeight !== undefined && existing?.finalWeight !== null && (
-                  <div className="col-span-2 bg-gray-100 rounded-xl px-3 py-2">
-                    <span className="text-xs text-gray-600">Peso final calculado: </span>
-                    <span className="font-bold">{existing.finalWeight.toFixed(2)} {product.unit}</span>
-                  </div>
-                )}
-              </div>
-            )}
-
-            {formType === 'smoked' && (
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className={labelClass}>Unidades</label>
-                  <input type="number" name="units" min="0" inputMode="numeric"
-                    defaultValue={existing?.units ?? ''} className={inputClass} />
-                </div>
-                <div>
-                  <label className={labelClass}>Peso (LB)</label>
-                  <input type="number" name="weightLb" step="0.01" min="0" inputMode="decimal"
-                    defaultValue={existing?.weightLb ?? ''} className={inputClass} />
-                </div>
-              </div>
-            )}
-
-            {formType === 'beverage_service' && (
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className={labelClass}>Inv. inicial ({product.unit})</label>
-                  <input type="number" name="initialStock" step="0.01" min="0" inputMode="decimal"
-                    defaultValue={existing?.initialStock ?? ''} className={inputClass} />
-                </div>
-                <div>
-                  <label className={labelClass}>Recarga ({product.unit})</label>
-                  <input type="number" name="restock" step="0.01" min="0" inputMode="decimal"
-                    defaultValue={existing?.restock ?? ''} placeholder="0" className={inputClass} />
-                </div>
-                <div>
-                  <label className={labelClass}>Inv. final ({product.unit})</label>
-                  <input type="number" name="finalStock" step="0.01" min="0" inputMode="decimal"
-                    defaultValue={existing?.finalStock ?? ''} className={inputClass} />
-                </div>
-                {existing?.consumption !== null && existing?.consumption !== undefined && (
-                  <div className="bg-gray-100 rounded-xl px-3 py-2 flex flex-col justify-center">
-                    <span className="text-xs text-gray-600">Consumo</span>
-                    <span className="font-bold">{existing.consumption.toFixed(1)} {product.unit}</span>
-                  </div>
-                )}
-              </div>
-            )}
+        dayClosed ? (
+          <div className="px-4 pb-4 pt-3 border-t border-gray-200/60 text-center text-sm text-gray-500">
+            Día cerrado. No se pueden realizar cambios.
           </div>
-
-          <div>
-            <label className={labelClass}>Notas (opcional)</label>
-            <input
-              type="text"
-              name="notes"
-              defaultValue={existing?.notes ?? ''}
-              placeholder="Observaciones..."
-              className={inputClass}
-            />
-          </div>
-
-          <div className="flex items-center gap-2 bg-gray-50 border border-gray-200 rounded-xl px-3 py-2">
-            <span className="text-xs text-gray-500 shrink-0">Stock mínimo:</span>
-            <input
-              type="number"
-              name="minStock"
-              step="0.01"
-              min="0"
-              inputMode="decimal"
-              defaultValue={product.minStock}
-              className="flex-1 bg-transparent text-sm font-medium focus:outline-none text-right"
-            />
-            <span className="text-xs text-gray-400 shrink-0">{product.unit}</span>
-          </div>
-
-          <button
-            type="submit"
-            disabled={pending}
-            className="w-full bg-orange-500 hover:bg-orange-600 disabled:opacity-50 text-white font-bold py-3 rounded-xl transition"
+        ) : (
+          <form
+            action={formAction}
+            className="px-4 pb-4 space-y-3 border-t border-gray-200/60"
           >
-            {pending ? 'Guardando...' : existing ? 'Actualizar' : 'Guardar'}
-          </button>
-        </form>
+            <input type="hidden" name="productId" value={product.id} />
+            <input type="hidden" name="date" value={today} />
+            <input type="hidden" name="module" value={product.module} />
+
+            {state?.error && (
+              <p className="text-sm text-red-600 bg-red-50 rounded-lg px-3 py-2">{state.error}</p>
+            )}
+            {state?.success && (
+              <p className="text-sm text-green-700 bg-green-50 rounded-lg px-3 py-2">✓ Guardado</p>
+            )}
+
+            <div className="pt-3">
+              {formType === 'simple' && (
+                <div>
+                  <label className={labelClass}>Stock actual ({product.unit})</label>
+                  <input
+                    type="number"
+                    name="currentStock"
+                    step="0.01"
+                    min="0"
+                    inputMode="decimal"
+                    defaultValue={existing?.currentStock ?? ''}
+                    placeholder={`Mínimo: ${product.minStock}`}
+                    className={inputClass}
+                  />
+                </div>
+              )}
+
+              {formType === 'weight' && (
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className={labelClass}>Peso inicial ({product.unit})</label>
+                    <input type="number" name="initialWeight" step="0.01" min="0" inputMode="decimal"
+                      defaultValue={existing?.initialWeight ?? ''} className={inputClass} />
+                  </div>
+                  <div>
+                    <label className={labelClass}>Merma 1 ({product.unit})</label>
+                    <input type="number" name="waste1" step="0.01" min="0" inputMode="decimal"
+                      defaultValue={existing?.waste1 ?? ''} placeholder="0" className={inputClass} />
+                  </div>
+                  <div>
+                    <label className={labelClass}>Recarga ({product.unit})</label>
+                    <input type="number" name="restock" step="0.01" min="0" inputMode="decimal"
+                      defaultValue={existing?.restock ?? ''} placeholder="0" className={inputClass} />
+                  </div>
+                  <div>
+                    <label className={labelClass}>Merma 2 ({product.unit})</label>
+                    <input type="number" name="waste2" step="0.01" min="0" inputMode="decimal"
+                      defaultValue={existing?.waste2 ?? ''} placeholder="0" className={inputClass} />
+                  </div>
+                  {existing?.finalWeight !== undefined && existing?.finalWeight !== null && (
+                    <div className="col-span-2 bg-gray-100 rounded-xl px-3 py-2">
+                      <span className="text-xs text-gray-600">Peso final calculado: </span>
+                      <span className="font-bold">{existing.finalWeight.toFixed(2)} {product.unit}</span>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {formType === 'smoked' && (
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className={labelClass}>Unidades</label>
+                    <input type="number" name="units" min="0" inputMode="numeric"
+                      defaultValue={existing?.units ?? ''} className={inputClass} />
+                  </div>
+                  <div>
+                    <label className={labelClass}>Peso (LB)</label>
+                    <input type="number" name="weightLb" step="0.01" min="0" inputMode="decimal"
+                      defaultValue={existing?.weightLb ?? ''} className={inputClass} />
+                  </div>
+                </div>
+              )}
+
+              {formType === 'beverage_service' && (
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className={labelClass}>Inv. inicial ({product.unit})</label>
+                    <input type="number" name="initialStock" step="0.01" min="0" inputMode="decimal"
+                      defaultValue={existing?.initialStock ?? ''} className={inputClass} />
+                  </div>
+                  <div>
+                    <label className={labelClass}>Recarga ({product.unit})</label>
+                    <input type="number" name="restock" step="0.01" min="0" inputMode="decimal"
+                      defaultValue={existing?.restock ?? ''} placeholder="0" className={inputClass} />
+                  </div>
+                  <div>
+                    <label className={labelClass}>Inv. final ({product.unit})</label>
+                    <input type="number" name="finalStock" step="0.01" min="0" inputMode="decimal"
+                      defaultValue={existing?.finalStock ?? ''} className={inputClass} />
+                  </div>
+                  {existing?.consumption !== null && existing?.consumption !== undefined && (
+                    <div className="bg-gray-100 rounded-xl px-3 py-2 flex flex-col justify-center">
+                      <span className="text-xs text-gray-600">Consumo</span>
+                      <span className="font-bold">{existing.consumption.toFixed(1)} {product.unit}</span>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+
+            <div>
+              <label className={labelClass}>Notas (opcional)</label>
+              <input
+                type="text"
+                name="notes"
+                defaultValue={existing?.notes ?? ''}
+                placeholder="Observaciones..."
+                className={inputClass}
+              />
+            </div>
+
+            <div className="flex items-center gap-2 bg-gray-50 border border-gray-200 rounded-xl px-3 py-2">
+              <span className="text-xs text-gray-500 shrink-0">Stock mínimo:</span>
+              <input
+                type="number"
+                name="minStock"
+                step="0.01"
+                min="0"
+                inputMode="decimal"
+                defaultValue={product.minStock}
+                className="flex-1 bg-transparent text-sm font-medium focus:outline-none text-right"
+              />
+              <span className="text-xs text-gray-400 shrink-0">{product.unit}</span>
+            </div>
+
+            <button
+              type="submit"
+              disabled={pending}
+              className="w-full bg-orange-500 hover:bg-orange-600 disabled:opacity-50 text-white font-bold py-3 rounded-xl transition"
+            >
+              {pending ? 'Guardando...' : existing ? 'Actualizar' : 'Guardar'}
+            </button>
+          </form>
+        )
       )}
     </div>
   )

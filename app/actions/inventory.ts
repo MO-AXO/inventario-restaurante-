@@ -74,8 +74,9 @@ export async function saveInventoryRecord(
     create: data as Parameters<typeof prisma.dailyRecord.create>[0]['data'],
   })
 
-  // Create alert if CRITICO or BAJO
+  // Create alert if CRITICO or BAJO — one unread alert per product max
   if (data.status === 'CRITICO' || data.status === 'BAJO') {
+    await prisma.alert.deleteMany({ where: { productId, read: false } })
     await prisma.alert.create({
       data: {
         productId,
@@ -85,6 +86,9 @@ export async function saveInventoryRecord(
         message: `${product.name} está en estado ${data.status}. Stock: ${data.currentStock} ${product.unit} (mínimo: ${product.minStock})`,
       },
     })
+  } else {
+    // Stock OK — remove any existing unread alert
+    await prisma.alert.deleteMany({ where: { productId, read: false } })
   }
 
   revalidatePath('/dashboard')
@@ -116,8 +120,9 @@ async function deductFromBodega(productName: string, qty: number, date: string, 
     create: { productId: bodegaProduct.id, date: new Date(date), currentStock, status, userId },
   })
 
-  // Alerta si quedó bajo o crítico
+  // Alerta si quedó bajo o crítico — one unread alert per product max
   if (status === 'CRITICO' || status === 'BAJO') {
+    await prisma.alert.deleteMany({ where: { productId: bodegaProduct.id, read: false } })
     await prisma.alert.create({
       data: {
         productId: bodegaProduct.id,
@@ -139,5 +144,10 @@ export async function markAlertRead(alertId: string): Promise<void> {
 
 export async function markAllAlertsRead(): Promise<void> {
   await prisma.alert.updateMany({ where: { read: false }, data: { read: true } })
+  revalidatePath('/alertas')
+}
+
+export async function deleteReadAlerts(): Promise<void> {
+  await prisma.alert.deleteMany({ where: { read: true } })
   revalidatePath('/alertas')
 }
