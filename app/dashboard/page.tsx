@@ -76,7 +76,8 @@ export default async function DashboardPage() {
     let consumption: number | null = null
 
     if (WEIGHT_MODULES.includes(mod)) {
-      consumption = (r.waste1 ?? 0) + (r.waste2 ?? 0)
+      // consumed = initial + restock - final
+      consumption = (r.initialWeight ?? 0) + (r.restock ?? 0) - (r.finalWeight ?? 0)
     } else if (BEVERAGE_SERVICE_MODULES.includes(mod)) {
       consumption = r.consumption ?? null
     }
