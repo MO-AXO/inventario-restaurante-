@@ -68,7 +68,7 @@ export default async function AdminPage() {
               className="border border-gray-300 rounded-xl px-3 py-2.5 col-span-2" />
             <input name="category" placeholder="Categoría (ej: Carnes, Verduras)" required
               className="border border-gray-300 rounded-xl px-3 py-2.5" />
-            <input name="unit" placeholder="Unidad (LB, kg, unidad)" required
+            <input name="unit" placeholder="Unidad (LB, unidad, bolsa, bote...)" required
               className="border border-gray-300 rounded-xl px-3 py-2.5" />
             <select name="module" className="border border-gray-300 rounded-xl px-3 py-2.5">
               {modules.map((m) => (
