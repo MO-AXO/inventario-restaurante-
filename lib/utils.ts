@@ -78,6 +78,41 @@ export function todayDate() {
   return new Date().toISOString().split('T')[0]
 }
 
+export const SECTION_GROUPS: { label: string; icon: string; modules: Module[] }[] = [
+  {
+    label: 'Bodega',
+    icon: '📦',
+    modules: [
+      'BEBIDAS_BODEGA',
+      'BODEGA',
+      'LACTEOS_BODEGA',
+      'SALSAS_ADEREZOS_BODEGA',
+      'CONDIMENTOS_BODEGA',
+      'DESECHABLES_BODEGA',
+      'HARINAS_ACEITE_BODEGA',
+      'VERDURAS',
+      'CARNE_CRUDA',
+      'CARNES_AHUMADAS',
+    ],
+  },
+  {
+    label: 'Restaurante',
+    icon: '🍽️',
+    modules: [
+      'CARNES_PREPARADAS',
+      'BEBIDAS_SERVICIO',
+      'SALSAS_ADEREZOS_RESTAURANTE',
+      'DESECHABLES_BOLSAS_RESTAURANTE',
+      'CONDIMENTOS_RESTAURANTE',
+      'LACTEOS_RESTAURANTE',
+      'HARINAS_ACEITE_RESTAURANTE',
+      'VERDURAS_RESTAURANTE',
+      'GUARNICIONES',
+      'LIMPIEZA_RESTAURANTE',
+    ],
+  },
+]
+
 // Which modules use weight tracking (initial/waste/restock/final)
 export const WEIGHT_MODULES: Module[] = ['CARNES_PREPARADAS', 'CARNE_CRUDA', 'VERDURAS']
 

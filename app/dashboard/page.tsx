@@ -3,7 +3,7 @@ export const dynamic = 'force-dynamic'
 import Link from 'next/link'
 import { prisma } from '@/lib/db'
 import Navbar from '@/components/Navbar'
-import { MODULE_LABELS, MODULE_ICONS, statusColor, statusBadge, todayDate } from '@/lib/utils'
+import { MODULE_LABELS, MODULE_ICONS, statusColor, statusBadge, todayDate, SECTION_GROUPS } from '@/lib/utils'
 import { Module, StockStatus } from '@prisma/client'
 
 async function getDashboardData() {
@@ -41,8 +41,6 @@ export default async function DashboardPage() {
     return acc
   }, {} as Record<string, typeof products>)
 
-  const modules = Object.keys(MODULE_LABELS) as Module[]
-
   return (
     <div className="min-h-screen flex flex-col">
       <Navbar />
@@ -72,30 +70,34 @@ export default async function DashboardPage() {
           </div>
         </div>
 
-        {/* Quick actions */}
-        <div className="mb-6">
-          <h2 className="text-lg font-semibold mb-3">Registrar inventario</h2>
-          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
-            {modules.map((mod) => (
-              <Link
-                key={mod}
-                href={`/inventario/${mod.toLowerCase()}`}
-                className="bg-white border border-gray-200 hover:border-orange-400 hover:shadow-md rounded-2xl p-4 flex flex-col items-center gap-2 transition"
-              >
-                <span className="text-3xl">{MODULE_ICONS[mod]}</span>
-                <span className="text-sm font-medium text-center">{MODULE_LABELS[mod]}</span>
-                {byModule[mod] && (
-                  <span className="text-xs text-gray-500">
-                    {byModule[mod].filter((p) => p.records[0]?.status === 'CRITICO').length > 0 && (
-                      <span className="text-red-500 font-bold">
+        {/* Quick actions grouped by section */}
+        <div className="mb-6 space-y-6">
+          <h2 className="text-lg font-semibold">Registrar inventario</h2>
+          {SECTION_GROUPS.map((group) => (
+            <div key={group.label}>
+              <div className="flex items-center gap-2 mb-3">
+                <span className="text-xl">{group.icon}</span>
+                <h3 className="text-base font-semibold text-gray-700">{group.label}</h3>
+              </div>
+              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
+                {group.modules.map((mod) => (
+                  <Link
+                    key={mod}
+                    href={`/inventario/${mod.toLowerCase()}`}
+                    className="bg-white border border-gray-200 hover:border-orange-400 hover:shadow-md rounded-2xl p-4 flex flex-col items-center gap-2 transition"
+                  >
+                    <span className="text-3xl">{MODULE_ICONS[mod]}</span>
+                    <span className="text-sm font-medium text-center">{MODULE_LABELS[mod]}</span>
+                    {byModule[mod] && byModule[mod].filter((p) => p.records[0]?.status === 'CRITICO').length > 0 && (
+                      <span className="text-red-500 font-bold text-xs">
                         {byModule[mod].filter((p) => p.records[0]?.status === 'CRITICO').length} críticos
                       </span>
                     )}
-                  </span>
-                )}
-              </Link>
-            ))}
-          </div>
+                  </Link>
+                ))}
+              </div>
+            </div>
+          ))}
         </div>
 
         {/* Critical & Low items */}
