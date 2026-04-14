@@ -40,6 +40,13 @@ export default async function Navbar() {
         {user?.role === 'OWNER' && (
           <>
             <Link
+              href="/compras"
+              className="p-2 rounded-lg hover:bg-gray-700 transition"
+              title="Lista de compras"
+            >
+              <span className="text-xl">🛒</span>
+            </Link>
+            <Link
               href="/consumo"
               className="p-2 rounded-lg hover:bg-gray-700 transition"
               title="Consumo diario"
