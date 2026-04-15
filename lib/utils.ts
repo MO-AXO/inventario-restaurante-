@@ -128,7 +128,10 @@ export const WEIGHT_MODULES: Module[] = ['CARNE_CRUDA', 'VERDURAS']
 export const SMOKED_MODULES: Module[] = ['CARNES_AHUMADAS']
 
 // Which modules track beverage service (initial/restock/final/consumption)
-export const BEVERAGE_SERVICE_MODULES: Module[] = ['BEBIDAS_SERVICIO', 'DESECHABLES_BODEGA']
+export const BEVERAGE_SERVICE_MODULES: Module[] = ['BEBIDAS_SERVICIO']
+
+// Which modules track bodega stock with initial + restock → auto-calculated final
+export const BODEGA_STOCK_MODULES: Module[] = ['DESECHABLES_BODEGA']
 
 // Restaurante modules that restock from a matching bodega module (same product name)
 export const RESTAURANTE_RESTOCK_MAP: Partial<Record<Module, Module>> = {

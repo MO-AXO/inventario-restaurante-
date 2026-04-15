@@ -35,7 +35,7 @@ type ActionState = { success?: boolean; error?: string } | undefined
 type Props = {
   product: Product
   today: string
-  formType: 'carnes_servicio' | 'weight' | 'smoked' | 'beverage_service' | 'salsas_restaurante' | 'simple'
+  formType: 'carnes_servicio' | 'weight' | 'smoked' | 'beverage_service' | 'bodega_stock' | 'salsas_restaurante' | 'simple'
   existing: ExistingRecord | null
   action: (state: ActionState, formData: FormData) => Promise<ActionState>
   dayClosed?: boolean
@@ -54,6 +54,7 @@ function effectiveStock(
     case 'smoked':
       return existing.weightLb
     case 'beverage_service':
+    case 'bodega_stock':
       return existing.finalStock
     default: // simple, salsas_restaurante
       return existing.currentStock
@@ -112,7 +113,9 @@ export default function InventoryForm({ product, today, formType, existing, acti
                 {formType === 'smoked'
                   ? `${existing.units ?? '—'} u / ${existing.weightLb ?? '—'} LB`
                   : formType === 'beverage_service'
-                  ? `Final: ${existing.finalStock ?? '—'} ${product.unit}${existing.initialStock !== null ? ` (${existing.initialStock ?? 0}+${existing.restock ?? 0})` : ''}`
+                  ? `Final: ${existing.finalStock ?? '—'} ${product.unit}`
+                  : formType === 'bodega_stock'
+                  ? `Total: ${existing.finalStock ?? '—'} ${product.unit}${existing.initialStock !== null ? ` (${existing.initialStock ?? 0}+${existing.restock ?? 0})` : ''}`
                   : formType === 'carnes_servicio'
                   ? `Final: ${existing.finalWeight ?? '—'} ${product.unit}`
                   : formType === 'salsas_restaurante'
@@ -271,6 +274,32 @@ export default function InventoryForm({ product, today, formType, existing, acti
                 <div className="grid grid-cols-2 gap-3">
                   <div>
                     <label className={labelClass}>Inv. inicial ({product.unit})</label>
+                    <input type="number" name="initialStock" step="0.01" min="0" inputMode="decimal"
+                      defaultValue={existing?.initialStock ?? ''} className={inputClass} />
+                  </div>
+                  <div>
+                    <label className={labelClass}>Recarga ({product.unit})</label>
+                    <input type="number" name="restock" step="0.01" min="0" inputMode="decimal"
+                      defaultValue={existing?.restock ?? ''} placeholder="0" className={inputClass} />
+                  </div>
+                  <div>
+                    <label className={labelClass}>Inv. final ({product.unit})</label>
+                    <input type="number" name="finalStock" step="0.01" min="0" inputMode="decimal"
+                      defaultValue={existing?.finalStock ?? ''} className={inputClass} />
+                  </div>
+                  {existing?.consumption !== null && existing?.consumption !== undefined && (
+                    <div className="bg-gray-100 rounded-xl px-3 py-2 flex flex-col justify-center">
+                      <span className="text-xs text-gray-600">Consumo</span>
+                      <span className="font-bold">{existing.consumption.toFixed(1)} {product.unit}</span>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {formType === 'bodega_stock' && (
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className={labelClass}>Inv. inicial ({product.unit})</label>
                     <input
                       type="number"
                       name="initialStock"
@@ -298,7 +327,7 @@ export default function InventoryForm({ product, today, formType, existing, acti
                   </div>
                   <input type="hidden" name="finalStock" value={computedFinal} />
                   <div className="col-span-2 bg-gray-100 rounded-xl px-3 py-2">
-                    <span className="text-xs text-gray-600">Inv. final (inicial + recarga): </span>
+                    <span className="text-xs text-gray-600">Total disponible (inicial + recarga): </span>
                     <span className="font-bold">{computedFinal.toFixed(1)} {product.unit}</span>
                   </div>
                 </div>

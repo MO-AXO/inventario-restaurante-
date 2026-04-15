@@ -32,7 +32,7 @@ type Product = {
   existing: ExistingRecord | null
 }
 
-type FormType = 'carnes_servicio' | 'weight' | 'smoked' | 'beverage_service' | 'salsas_restaurante' | 'simple'
+type FormType = 'carnes_servicio' | 'weight' | 'smoked' | 'beverage_service' | 'bodega_stock' | 'salsas_restaurante' | 'simple'
 
 type Props = {
   products: Product[]

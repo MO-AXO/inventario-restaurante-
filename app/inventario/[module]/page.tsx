@@ -4,7 +4,7 @@ import { notFound } from 'next/navigation'
 import { prisma } from '@/lib/db'
 import Navbar from '@/components/Navbar'
 import ModuleProductList from '@/components/ModuleProductList'
-import { MODULE_LABELS, MODULE_ICONS, todayDate, WEIGHT_MODULES, SMOKED_MODULES, BEVERAGE_SERVICE_MODULES, CARNES_SERVICIO_MODULES, RESTAURANTE_RESTOCK_MAP } from '@/lib/utils'
+import { MODULE_LABELS, MODULE_ICONS, todayDate, WEIGHT_MODULES, SMOKED_MODULES, BEVERAGE_SERVICE_MODULES, CARNES_SERVICIO_MODULES, RESTAURANTE_RESTOCK_MAP, BODEGA_STOCK_MODULES } from '@/lib/utils'
 import { Module } from '@prisma/client'
 
 type Props = { params: Promise<{ module: string }> }
@@ -24,11 +24,12 @@ function toModule(str: string): Module | null {
   return valid.includes(upper) ? upper : null
 }
 
-function getFormType(mod: Module): 'carnes_servicio' | 'weight' | 'smoked' | 'beverage_service' | 'salsas_restaurante' | 'simple' {
+function getFormType(mod: Module): 'carnes_servicio' | 'weight' | 'smoked' | 'beverage_service' | 'bodega_stock' | 'salsas_restaurante' | 'simple' {
   if (CARNES_SERVICIO_MODULES.includes(mod)) return 'carnes_servicio'
   if (WEIGHT_MODULES.includes(mod)) return 'weight'
   if (SMOKED_MODULES.includes(mod)) return 'smoked'
   if (BEVERAGE_SERVICE_MODULES.includes(mod)) return 'beverage_service'
+  if (BODEGA_STOCK_MODULES.includes(mod)) return 'bodega_stock'
   if (mod in RESTAURANTE_RESTOCK_MAP) return 'salsas_restaurante'
   return 'simple'
 }

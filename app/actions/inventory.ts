@@ -5,7 +5,7 @@ import { prisma } from '@/lib/db'
 import { getSession } from '@/lib/auth'
 import { calcStatus } from '@/lib/utils'
 import { Module } from '@prisma/client'
-import { WEIGHT_MODULES, SMOKED_MODULES, BEVERAGE_SERVICE_MODULES, CARNES_SERVICIO_MODULES, RESTAURANTE_RESTOCK_MAP } from '@/lib/utils'
+import { WEIGHT_MODULES, SMOKED_MODULES, BEVERAGE_SERVICE_MODULES, CARNES_SERVICIO_MODULES, RESTAURANTE_RESTOCK_MAP, BODEGA_STOCK_MODULES } from '@/lib/utils'
 
 export async function saveInventoryRecord(
   _prevState: { success?: boolean; error?: string } | undefined,
@@ -66,10 +66,17 @@ export async function saveInventoryRecord(
     const status = calcStatus(finalStock, product.minStock)
     data = { ...data, initialStock, restock, finalStock, consumption, currentStock: finalStock, status }
 
-    // Si hay recarga, descontar de Bebidas Bodega automáticamente (solo para Bebidas Servicio)
-    if (restock > 0 && module === 'BEBIDAS_SERVICIO') {
+    // Si hay recarga, descontar de Bebidas Bodega automáticamente
+    if (restock > 0) {
       await deductFromModule(product.name, restock, date, session.userId, 'BEBIDAS_BODEGA')
     }
+  } else if (BODEGA_STOCK_MODULES.includes(module)) {
+    // Bodega stock: initial + restock → finalStock auto-calculated
+    const initialStock = parseFloat(formData.get('initialStock') as string) || 0
+    const restock = parseFloat(formData.get('restock') as string) || 0
+    const finalStock = parseFloat(formData.get('finalStock') as string) || 0
+    const status = calcStatus(finalStock, product.minStock)
+    data = { ...data, initialStock, restock, finalStock, currentStock: finalStock, status }
   } else if (module in RESTAURANTE_RESTOCK_MAP) {
     const currentStock = parseFloat(formData.get('currentStock') as string) || 0
     const restock = parseFloat(formData.get('restock') as string) || 0

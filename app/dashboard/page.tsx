@@ -15,6 +15,7 @@ import {
   WEIGHT_MODULES,
   SMOKED_MODULES,
   BEVERAGE_SERVICE_MODULES,
+  BODEGA_STOCK_MODULES,
 } from '@/lib/utils'
 import { Module, StockStatus } from '@prisma/client'
 import { getSession } from '@/lib/auth'
@@ -62,7 +63,7 @@ export default async function DashboardPage() {
     if (!r) return null
     if (CARNES_SERVICIO_MODULES.includes(mod) || WEIGHT_MODULES.includes(mod)) return r.finalWeight
     if (SMOKED_MODULES.includes(mod)) return r.weightLb
-    if (BEVERAGE_SERVICE_MODULES.includes(mod)) return r.finalStock
+    if (BEVERAGE_SERVICE_MODULES.includes(mod) || BODEGA_STOCK_MODULES.includes(mod)) return r.finalStock
     return r.currentStock
   }
   function liveStatus(p: typeof products[0]): StockStatus | null {
