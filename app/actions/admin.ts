@@ -81,6 +81,29 @@ export async function toggleProductActive(formData: FormData): Promise<void> {
   revalidatePath('/dashboard')
 }
 
+export async function bulkUpdateMinStock(formData: FormData): Promise<void> {
+  const session = await getSession()
+  if (!session || session.role !== 'OWNER') return
+
+  const updates: { id: string; minStock: number }[] = []
+  for (const [key, value] of formData.entries()) {
+    if (key.startsWith('min_')) {
+      const id = key.slice(4)
+      const minStock = parseFloat(value as string)
+      if (!isNaN(minStock) && minStock >= 0) {
+        updates.push({ id, minStock })
+      }
+    }
+  }
+
+  await prisma.$transaction(
+    updates.map((u) => prisma.product.update({ where: { id: u.id }, data: { minStock: u.minStock } }))
+  )
+
+  revalidatePath('/admin/minimos')
+  revalidatePath('/dashboard')
+}
+
 export async function toggleUserActive(formData: FormData): Promise<void> {
   const session = await getSession()
   if (!session || session.role !== 'OWNER') return

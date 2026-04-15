@@ -31,7 +31,12 @@ export default async function AdminPage() {
     <div className="min-h-screen flex flex-col">
       <Navbar />
       <main className="flex-1 p-4 max-w-3xl mx-auto w-full space-y-8">
-        <h1 className="text-xl font-bold">Administración</h1>
+        <div className="flex items-center justify-between">
+          <h1 className="text-xl font-bold">Administración</h1>
+          <Link href="/admin/minimos" className="text-sm bg-orange-500 hover:bg-orange-600 text-white px-4 py-2 rounded-xl font-medium transition">
+            Editar mínimos
+          </Link>
+        </div>
 
         {/* Add User */}
         <section className="bg-white rounded-2xl border border-gray-200 p-5">
