@@ -66,8 +66,8 @@ export async function saveInventoryRecord(
     const status = calcStatus(finalStock, product.minStock)
     data = { ...data, initialStock, restock, finalStock, consumption, currentStock: finalStock, status }
 
-    // Si hay recarga, descontar de Bebidas Bodega automáticamente
-    if (restock > 0) {
+    // Si hay recarga, descontar de Bebidas Bodega automáticamente (solo para Bebidas Servicio)
+    if (restock > 0 && module === 'BEBIDAS_SERVICIO') {
       await deductFromModule(product.name, restock, date, session.userId, 'BEBIDAS_BODEGA')
     }
   } else if (module in RESTAURANTE_RESTOCK_MAP) {
