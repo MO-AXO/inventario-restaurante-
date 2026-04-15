@@ -1,6 +1,6 @@
 'use client'
 
-import { useActionState, useState } from 'react'
+import { useActionState, useState, useRef, useEffect } from 'react'
 import { Module } from '@prisma/client'
 import Link from 'next/link'
 import { calcStatus } from '@/lib/utils'
@@ -79,10 +79,25 @@ export default function InventoryForm({ product, today, formType, existing, acti
   const [open, setOpen] = useState(!existing)
   const [state, formAction, pending] = useActionState(action, undefined)
 
-  // Live calculation for beverage_service: finalStock = initialStock + restock
+  // Live calculation for bodega_stock: finalStock = initialStock + restock
   const [initStock, setInitStock] = useState<number>(existing?.initialStock ?? 0)
   const [restockStock, setRestockStock] = useState<number>(existing?.restock ?? 0)
   const computedFinal = initStock + restockStock
+
+  // Auto-save: submit 1.5s after last field change
+  const formRef = useRef<HTMLFormElement>(null)
+  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  function scheduleSave() {
+    if (timerRef.current) clearTimeout(timerRef.current)
+    timerRef.current = setTimeout(() => {
+      formRef.current?.requestSubmit()
+    }, 1500)
+  }
+
+  useEffect(() => {
+    return () => { if (timerRef.current) clearTimeout(timerRef.current) }
+  }, [])
 
   // Compute status live from stock + minStock so color always reflects new thresholds
   const stock = effectiveStock(formType, existing)
@@ -156,8 +171,10 @@ export default function InventoryForm({ product, today, formType, existing, acti
           </div>
         ) : (
           <form
+            ref={formRef}
             action={formAction}
             className="px-4 pb-4 space-y-3 border-t border-gray-200/60"
+            onChange={scheduleSave}
           >
             <input type="hidden" name="productId" value={product.id} />
             <input type="hidden" name="date" value={today} />
@@ -166,7 +183,7 @@ export default function InventoryForm({ product, today, formType, existing, acti
             {state?.error && (
               <p className="text-sm text-red-600 bg-red-50 rounded-lg px-3 py-2">{state.error}</p>
             )}
-            {state?.success && (
+            {state?.success && !pending && (
               <p className="text-sm text-green-700 bg-green-50 rounded-lg px-3 py-2">✓ Guardado</p>
             )}
 
@@ -400,7 +417,7 @@ export default function InventoryForm({ product, today, formType, existing, acti
               disabled={pending}
               className="w-full bg-orange-500 hover:bg-orange-600 disabled:opacity-50 text-white font-bold py-3 rounded-xl transition"
             >
-              {pending ? 'Guardando...' : existing ? 'Actualizar' : 'Guardar'}
+              {pending ? 'Guardando...' : state?.success ? '✓ Guardado' : existing ? 'Actualizar' : 'Guardar'}
             </button>
           </form>
         )
