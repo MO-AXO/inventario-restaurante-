@@ -11,6 +11,7 @@ export async function saveInventoryRecord(
   _prevState: { success?: boolean; error?: string } | undefined,
   formData: FormData
 ) {
+  try {
   const session = await getSession()
   if (!session) return { error: 'No autorizado' }
 
@@ -76,9 +77,14 @@ export async function saveInventoryRecord(
     const status = calcStatus(finalStock, product.minStock)
     data = { ...data, initialStock, restock, finalStock, consumption, currentStock: finalStock, status }
 
-    // Si hay recarga, descontar de Bebidas Bodega automáticamente
-    if (restock > 0) {
-      await deductFromModule(product.name, restock, date, session.userId, 'BEBIDAS_BODEGA')
+    // Descontar delta de recarga de Bebidas Bodega (idempotente)
+    const existingBebidas = await prisma.dailyRecord.findUnique({
+      where: { productId_date: { productId, date: new Date(date) } },
+    })
+    const oldRestockBebidas = existingBebidas?.restock ?? 0
+    const deltaBebidas = restock - oldRestockBebidas
+    if (deltaBebidas !== 0) {
+      await deductFromModule(product.name, deltaBebidas, date, session.userId, 'BEBIDAS_BODEGA')
     }
   } else if (BODEGA_STOCK_MODULES.includes(module)) {
     // Bodega stock: initial + restock → finalStock auto-calculated
@@ -138,6 +144,10 @@ export async function saveInventoryRecord(
   revalidatePath(`/inventario/${module.toLowerCase()}`)
 
   return { success: true }
+  } catch (err) {
+    console.error('saveInventoryRecord error:', err)
+    return { error: 'Error al guardar. Intentá de nuevo.' }
+  }
 }
 
 // Descuenta (o suma si negativo) del stock de un módulo bodega dado.
@@ -174,7 +184,7 @@ async function deductFromModule(
       : { productId: bodegaProduct.id, date: new Date(date), currentStock, finalWeight: currentStock, status, userId },
   })
 
-  // Alerta si quedó bajo o crítico — one unread alert per product max
+  // Alerta si quedó bajo o crítico; limpiar si quedó OK
   if (status === 'CRITICO' || status === 'BAJO') {
     await prisma.alert.deleteMany({ where: { productId: bodegaProduct.id, read: false } })
     await prisma.alert.create({
@@ -186,6 +196,8 @@ async function deductFromModule(
         message: `${bodegaProduct.name} bajo por recarga. Stock: ${currentStock} ${bodegaProduct.unit} (mínimo: ${bodegaProduct.minStock})`,
       },
     })
+  } else {
+    await prisma.alert.deleteMany({ where: { productId: bodegaProduct.id, read: false } })
   }
 
   revalidatePath(`/inventario/${targetModule.toLowerCase()}`)
