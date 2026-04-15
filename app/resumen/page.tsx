@@ -58,9 +58,9 @@ function stockDisplay(product: { unit: string; module: Module }, record: StockRe
 export default async function ResumenPage({
   searchParams,
 }: {
-  searchParams: Promise<{ q?: string }>
+  searchParams: Promise<{ q?: string; tab?: string }>
 }) {
-  const { q = '' } = await searchParams
+  const { q = '', tab = 'todos' } = await searchParams
   const today = todayDate()
 
   const allProducts = await prisma.product.findMany({
@@ -95,11 +95,23 @@ export default async function ResumenPage({
       )
     : products
 
-  // Summary counts — computed live from stock + minStock
-  const critico = filtered.filter((p) => liveStatus(p) === 'CRITICO').length
-  const bajo    = filtered.filter((p) => liveStatus(p) === 'BAJO').length
-  const ok      = filtered.filter((p) => liveStatus(p) === 'OK').length
-  const sinReg  = filtered.filter((p) => p.records.length === 0).length
+  // Which sections are visible based on active tab
+  const visibleSections = tab === 'bodega'
+    ? SECTION_GROUPS.filter((s) => s.label === 'Bodega')
+    : tab === 'restaurante'
+    ? SECTION_GROUPS.filter((s) => s.label === 'Restaurante')
+    : SECTION_GROUPS
+
+  const visibleModules = new Set(visibleSections.flatMap((s) => s.modules))
+  const tabFiltered = tab === 'todos'
+    ? filtered
+    : filtered.filter((p) => visibleModules.has(p.module))
+
+  // Summary counts — scoped to active tab
+  const critico = tabFiltered.filter((p) => liveStatus(p) === 'CRITICO').length
+  const bajo    = tabFiltered.filter((p) => liveStatus(p) === 'BAJO').length
+  const ok      = tabFiltered.filter((p) => liveStatus(p) === 'OK').length
+  const sinReg  = tabFiltered.filter((p) => p.records.length === 0).length
 
   // Group by module
   const byModule: Record<string, ProductRow[]> = {}
@@ -110,7 +122,7 @@ export default async function ResumenPage({
 
   const assignedModules = new Set(SECTION_GROUPS.flatMap((g) => g.modules))
   const unassignedModules = (Object.keys(byModule) as Module[]).filter(
-    (m) => !assignedModules.has(m)
+    (m) => !assignedModules.has(m) && (tab === 'todos' || visibleModules.has(m))
   )
 
   const dateLabel = new Date(today + 'T12:00:00').toLocaleDateString('es-CR', {
@@ -127,7 +139,7 @@ export default async function ResumenPage({
             <p className="text-sm text-gray-500 capitalize">{dateLabel}</p>
           </div>
           <a
-            href="/resumen"
+            href={`/resumen?tab=${tab}`}
             className="text-xs text-gray-400 hover:text-gray-600 mt-1 flex items-center gap-1"
             title="Actualizar"
           >
@@ -135,8 +147,30 @@ export default async function ResumenPage({
           </a>
         </div>
 
+        {/* Tabs */}
+        <div className="flex gap-2 mb-5">
+          {([
+            { label: 'Todos', value: 'todos' },
+            { label: '📦 Bodega', value: 'bodega' },
+            { label: '🍽️ Restaurante', value: 'restaurante' },
+          ] as const).map(({ label, value }) => (
+            <a
+              key={value}
+              href={`/resumen?tab=${value}${q ? `&q=${encodeURIComponent(q)}` : ''}`}
+              className={`px-4 py-2 rounded-xl text-sm font-medium transition ${
+                tab === value
+                  ? 'bg-orange-500 text-white shadow-sm'
+                  : 'bg-white border border-gray-200 text-gray-600 hover:border-orange-400'
+              }`}
+            >
+              {label}
+            </a>
+          ))}
+        </div>
+
         {/* Search bar */}
         <form method="GET" action="/resumen" className="relative mb-5">
+          <input type="hidden" name="tab" value={tab} />
           <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-lg">🔍</span>
           <input
             type="text"
@@ -184,15 +218,17 @@ export default async function ResumenPage({
 
         {/* Sections */}
         <div className="space-y-8">
-          {SECTION_GROUPS.map((section) => {
+          {visibleSections.map((section) => {
             const sectionModules = section.modules.filter((m) => byModule[m]?.length > 0)
             if (sectionModules.length === 0) return null
             return (
               <div key={section.label}>
-                <div className="flex items-center gap-2 mb-4">
-                  <span className="text-2xl">{section.icon}</span>
-                  <h2 className="text-lg font-bold text-gray-800">{section.label}</h2>
-                </div>
+                {tab === 'todos' && (
+                  <div className="flex items-center gap-2 mb-4">
+                    <span className="text-2xl">{section.icon}</span>
+                    <h2 className="text-lg font-bold text-gray-800">{section.label}</h2>
+                  </div>
+                )}
                 <div className="space-y-4">
                   {sectionModules.map((mod) => (
                     <ModuleTable key={mod} mod={mod} products={byModule[mod]} query={query} />
