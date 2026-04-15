@@ -1,6 +1,6 @@
 'use client'
 
-import { useActionState, useState, useRef, useEffect } from 'react'
+import { useActionState, useState } from 'react'
 import { Module } from '@prisma/client'
 import Link from 'next/link'
 import { calcStatus } from '@/lib/utils'
@@ -84,21 +84,6 @@ export default function InventoryForm({ product, today, formType, existing, acti
   const [restockStock, setRestockStock] = useState<number>(existing?.restock ?? 0)
   const computedFinal = initStock + restockStock
 
-  // Auto-save: submit 1.5s after last field change
-  const formRef = useRef<HTMLFormElement>(null)
-  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
-
-  function scheduleSave() {
-    if (timerRef.current) clearTimeout(timerRef.current)
-    timerRef.current = setTimeout(() => {
-      formRef.current?.requestSubmit()
-    }, 1500)
-  }
-
-  useEffect(() => {
-    return () => { if (timerRef.current) clearTimeout(timerRef.current) }
-  }, [])
-
   // Compute status live from stock + minStock so color always reflects new thresholds
   const stock = effectiveStock(formType, existing)
   const liveStatus = existing ? calcStatus(stock, product.minStock) : undefined
@@ -171,10 +156,8 @@ export default function InventoryForm({ product, today, formType, existing, acti
           </div>
         ) : (
           <form
-            ref={formRef}
             action={formAction}
             className="px-4 pb-4 space-y-3 border-t border-gray-200/60"
-            onChange={scheduleSave}
           >
             <input type="hidden" name="productId" value={product.id} />
             <input type="hidden" name="date" value={today} />
@@ -183,7 +166,7 @@ export default function InventoryForm({ product, today, formType, existing, acti
             {state?.error && (
               <p className="text-sm text-red-600 bg-red-50 rounded-lg px-3 py-2">{state.error}</p>
             )}
-            {state?.success && !pending && (
+            {state?.success && (
               <p className="text-sm text-green-700 bg-green-50 rounded-lg px-3 py-2">✓ Guardado</p>
             )}
 
