@@ -17,7 +17,7 @@ export async function saveInventoryRecord(
 
   const productId = formData.get('productId') as string
   const date = formData.get('date') as string
-  const notes = formData.get('notes') as string | null
+  const notes = (formData.get('notes') as string)?.trim() || null
   const module = formData.get('module') as Module
 
   const product = await prisma.product.findUnique({ where: { id: productId } })
