@@ -45,6 +45,16 @@ export async function saveInventoryRecord(
     const finalWeight  = parseFloat(formData.get('finalWeight') as string) || 0
     const status = calcStatus(finalWeight, product.minStock)
     data = { ...data, initialWeight, waste1: midWeight, restock, finalWeight, currentStock: finalWeight, status }
+
+    // Descontar delta de recarga de Carnes Ahumadas (idempotente)
+    const existingCarnes = await prisma.dailyRecord.findUnique({
+      where: { productId_date: { productId, date: new Date(date) } },
+    })
+    const oldRestock = existingCarnes?.restock ?? 0
+    const delta = restock - oldRestock
+    if (delta !== 0) {
+      await deductFromModule(product.name, delta, date, session.userId, 'CARNES_AHUMADAS')
+    }
   } else if (WEIGHT_MODULES.includes(module)) {
     const initialWeight = parseFloat(formData.get('initialWeight') as string) || 0
     const waste1 = parseFloat(formData.get('waste1') as string) || 0
@@ -153,10 +163,15 @@ async function deductFromModule(
   const currentStock = Math.max(0, (latestRecord?.currentStock ?? 0) - qty)
   const status = calcStatus(currentStock, bodegaProduct.minStock)
 
+  const isSmokedTarget = SMOKED_MODULES.includes(targetModule)
   await prisma.dailyRecord.upsert({
     where: { productId_date: { productId: bodegaProduct.id, date: new Date(date) } },
-    update: { currentStock, finalWeight: currentStock, status, userId },
-    create: { productId: bodegaProduct.id, date: new Date(date), currentStock, finalWeight: currentStock, status, userId },
+    update: isSmokedTarget
+      ? { currentStock, weightLb: currentStock, status, userId }
+      : { currentStock, finalWeight: currentStock, status, userId },
+    create: isSmokedTarget
+      ? { productId: bodegaProduct.id, date: new Date(date), currentStock, weightLb: currentStock, status, userId }
+      : { productId: bodegaProduct.id, date: new Date(date), currentStock, finalWeight: currentStock, status, userId },
   })
 
   // Alerta si quedó bajo o crítico — one unread alert per product max

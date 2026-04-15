@@ -191,7 +191,7 @@ export default function InventoryForm({ product, today, formType, existing, isEx
                       defaultValue={existing?.waste1 ?? ''} className={inputClass} />
                   </div>
                   <div>
-                    <label className={labelClass}>Peso Recarga ({product.unit})</label>
+                    <label className={labelClass}>Peso Recarga ({product.unit}) — descuenta de Carnes Ahumadas</label>
                     <input type="number" name="restock" step="0.01" min="0" inputMode="decimal"
                       defaultValue={existing?.restock ?? ''} placeholder="0" className={inputClass} />
                   </div>
