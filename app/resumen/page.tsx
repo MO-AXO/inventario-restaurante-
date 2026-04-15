@@ -2,7 +2,7 @@ export const dynamic = 'force-dynamic'
 
 import Navbar from '@/components/Navbar'
 import { prisma } from '@/lib/db'
-import { todayDate, MODULE_LABELS, SECTION_GROUPS, MODULE_ICONS, statusColor, statusBadge, CARNES_SERVICIO_MODULES, WEIGHT_MODULES, SMOKED_MODULES, BEVERAGE_SERVICE_MODULES } from '@/lib/utils'
+import { todayDate, MODULE_LABELS, SECTION_GROUPS, MODULE_ICONS, statusColor, statusBadge, calcStatus, CARNES_SERVICIO_MODULES, WEIGHT_MODULES, SMOKED_MODULES, BEVERAGE_SERVICE_MODULES, BODEGA_STOCK_MODULES } from '@/lib/utils'
 import { Module, StockStatus } from '@prisma/client'
 
 type StockRecord = {
@@ -25,6 +25,20 @@ type ProductRow = {
   records: StockRecord[]
 }
 
+function effectiveStock(mod: Module, record: StockRecord | undefined): number | null {
+  if (!record) return null
+  if (CARNES_SERVICIO_MODULES.includes(mod) || WEIGHT_MODULES.includes(mod)) return record.finalWeight
+  if (SMOKED_MODULES.includes(mod)) return record.weightLb
+  if (BEVERAGE_SERVICE_MODULES.includes(mod) || BODEGA_STOCK_MODULES.includes(mod)) return record.finalStock
+  return record.currentStock
+}
+
+function liveStatus(p: ProductRow): StockStatus | null {
+  const r = p.records[0]
+  if (!r) return null
+  return calcStatus(effectiveStock(p.module, r), p.minStock)
+}
+
 function stockDisplay(product: { unit: string; module: Module }, record: StockRecord | undefined): string {
   if (!record) return '—'
   const mod = product.module
@@ -35,7 +49,7 @@ function stockDisplay(product: { unit: string; module: Module }, record: StockRe
     const w = record.weightLb !== null ? `${record.weightLb.toFixed(1)} LB` : '—'
     return `${u} / ${w}`
   }
-  if (BEVERAGE_SERVICE_MODULES.includes(mod))
+  if (BEVERAGE_SERVICE_MODULES.includes(mod) || BODEGA_STOCK_MODULES.includes(mod))
     return record.finalStock !== null ? `${record.finalStock.toFixed(1)} ${product.unit}` : '—'
   return record.currentStock !== null ? `${record.currentStock.toFixed(1)} ${product.unit}` : '—'
 }
@@ -81,10 +95,10 @@ export default async function ResumenPage({
       )
     : products
 
-  // Summary counts
-  const critico = filtered.filter((p) => p.records[0]?.status === 'CRITICO').length
-  const bajo    = filtered.filter((p) => p.records[0]?.status === 'BAJO').length
-  const ok      = filtered.filter((p) => p.records[0]?.status === 'OK').length
+  // Summary counts — computed live from stock + minStock
+  const critico = filtered.filter((p) => liveStatus(p) === 'CRITICO').length
+  const bajo    = filtered.filter((p) => liveStatus(p) === 'BAJO').length
+  const ok      = filtered.filter((p) => liveStatus(p) === 'OK').length
   const sinReg  = filtered.filter((p) => p.records.length === 0).length
 
   // Group by module
@@ -229,8 +243,8 @@ function ModuleTable({ mod, products, query }: { mod: Module; products: ProductR
     categories[p.category].push(p)
   }
 
-  const criticalCount = products.filter((p) => p.records[0]?.status === 'CRITICO').length
-  const lowCount      = products.filter((p) => p.records[0]?.status === 'BAJO').length
+  const criticalCount = products.filter((p) => liveStatus(p) === 'CRITICO').length
+  const lowCount      = products.filter((p) => liveStatus(p) === 'BAJO').length
 
   return (
     <div className="bg-white rounded-2xl border border-gray-200 overflow-hidden">
@@ -277,7 +291,7 @@ function ModuleTable({ mod, products, query }: { mod: Module; products: ProductR
               )}
               {catProducts.map((p) => {
                 const record = p.records[0]
-                const status = record?.status as StockStatus | undefined
+                const status = liveStatus(p)
                 const rowBg = status === 'CRITICO' ? 'bg-red-50/40' : status === 'BAJO' ? 'bg-yellow-50/40' : ''
                 return (
                   <tr key={p.id} className={`border-t border-gray-100 ${rowBg}`}>
