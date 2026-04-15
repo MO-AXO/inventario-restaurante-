@@ -79,7 +79,7 @@ export function statusBadge(status: StockStatus) {
 }
 
 export function todayDate() {
-  return new Date().toISOString().split('T')[0]
+  return new Date().toLocaleDateString('en-CA', { timeZone: 'America/Costa_Rica' })
 }
 
 export const SECTION_GROUPS: { label: string; icon: string; modules: Module[] }[] = [
