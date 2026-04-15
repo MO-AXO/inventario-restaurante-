@@ -12,6 +12,7 @@ type StockRecord = {
   finalStock: number | null
   units: number | null
   status: string
+  date: Date
   updatedAt: Date
 }
 
@@ -66,8 +67,7 @@ export default async function ResumenPage({
     where: { active: true },
     include: {
       records: {
-        where: { date: new Date(today) },
-        orderBy: { createdAt: 'desc' },
+        orderBy: { date: 'desc' },
         take: 1,
       },
     },
@@ -312,7 +312,10 @@ function ModuleTable({ mod, products, query }: { mod: Module; products: ProductR
                     </td>
                     <td className="px-4 py-2.5 text-right text-gray-400 text-xs hidden md:table-cell">
                       {record
-                        ? new Date(record.updatedAt).toLocaleString('es-CR', { hour: '2-digit', minute: '2-digit' })
+                        ? new Date(record.updatedAt).toLocaleString('es-CR', {
+                            month: 'short', day: 'numeric',
+                            hour: '2-digit', minute: '2-digit',
+                          })
                         : '—'}
                     </td>
                   </tr>

@@ -31,8 +31,7 @@ async function getDashboardData() {
       where: { active: true },
       include: {
         records: {
-          where: { date: new Date(today) },
-          orderBy: { createdAt: 'desc' },
+          orderBy: { date: 'desc' },
           take: 1,
         },
       },

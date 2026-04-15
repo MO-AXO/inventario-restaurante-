@@ -19,6 +19,7 @@ type ExistingRecord = {
   consumption: number | null
   status: string
   notes: string | null
+  date: Date
   updatedAt: Date
 }
 
@@ -30,6 +31,7 @@ type Product = {
   minStock: number
   module: Module
   existing: ExistingRecord | null
+  isExistingToday: boolean
 }
 
 type FormType = 'carnes_servicio' | 'weight' | 'smoked' | 'beverage_service' | 'bodega_stock' | 'salsas_restaurante' | 'simple'
@@ -129,6 +131,7 @@ export default function ModuleProductList({ products, today, formType, dayClosed
                 today={today}
                 formType={formType}
                 existing={product.existing}
+                isExistingToday={product.isExistingToday}
                 action={saveInventoryRecord}
                 dayClosed={dayClosed}
               />

@@ -28,6 +28,7 @@ type ExistingRecord = {
   consumption: number | null
   status: string
   notes: string | null
+  date: Date
   updatedAt: Date
 }
 
@@ -37,6 +38,7 @@ type Props = {
   today: string
   formType: 'carnes_servicio' | 'weight' | 'smoked' | 'beverage_service' | 'bodega_stock' | 'salsas_restaurante' | 'simple'
   existing: ExistingRecord | null
+  isExistingToday: boolean
   action: (state: ActionState, formData: FormData) => Promise<ActionState>
   dayClosed?: boolean
 }
@@ -75,7 +77,7 @@ function statusDot(s: string | undefined) {
   return <span className="w-3 h-3 rounded-full bg-gray-300 inline-block" />
 }
 
-export default function InventoryForm({ product, today, formType, existing, action, dayClosed }: Props) {
+export default function InventoryForm({ product, today, formType, existing, isExistingToday, action, dayClosed }: Props) {
   const [open, setOpen] = useState(!existing)
   const [state, formAction, pending] = useActionState(action, undefined)
 
@@ -168,6 +170,11 @@ export default function InventoryForm({ product, today, formType, existing, acti
             )}
             {state?.success && (
               <p className="text-sm text-green-700 bg-green-50 rounded-lg px-3 py-2">✓ Guardado</p>
+            )}
+            {existing && !isExistingToday && !state?.success && (
+              <p className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
+                Mostrando último registro guardado. Al guardar se creará el registro de hoy.
+              </p>
             )}
 
             <div className="pt-3">
@@ -400,7 +407,7 @@ export default function InventoryForm({ product, today, formType, existing, acti
               disabled={pending}
               className="w-full bg-orange-500 hover:bg-orange-600 disabled:opacity-50 text-white font-bold py-3 rounded-xl transition"
             >
-              {pending ? 'Guardando...' : state?.success ? '✓ Guardado' : existing ? 'Actualizar' : 'Guardar'}
+              {pending ? 'Guardando...' : state?.success ? '✓ Guardado' : isExistingToday ? 'Actualizar' : 'Guardar'}
             </button>
           </form>
         )

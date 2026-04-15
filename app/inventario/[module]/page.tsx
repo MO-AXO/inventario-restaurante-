@@ -46,7 +46,7 @@ export default async function InventarioModulePage({ params }: Props) {
     where: { module: mod, active: true },
     include: {
       records: {
-        where: { date: new Date(today) },
+        orderBy: { date: 'desc' },
         take: 1,
       },
     },
@@ -84,6 +84,9 @@ export default async function InventarioModulePage({ params }: Props) {
               minStock: p.minStock,
               module: p.module,
               existing: p.records[0] ?? null,
+              isExistingToday: p.records[0]
+                ? new Date(p.records[0].date).toISOString().split('T')[0] === today
+                : false,
             }))}
             today={today}
             formType={formType}
