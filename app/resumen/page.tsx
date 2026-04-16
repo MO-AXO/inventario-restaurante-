@@ -10,6 +10,9 @@ type StockRecord = {
   finalWeight: number | null
   weightLb: number | null
   finalStock: number | null
+  initialWeight: number | null
+  initialStock: number | null
+  restock: number | null
   units: number | null
   status: string
   date: Date
@@ -34,10 +37,33 @@ function effectiveStock(mod: Module, record: StockRecord | undefined): number | 
   return record.currentStock
 }
 
+// Para el estado, compara inicial + recarga vs mínimo en módulos que aplica
+function stockForStatus(mod: Module, record: StockRecord): number | null {
+  if (CARNES_SERVICIO_MODULES.includes(mod))
+    return (record.initialWeight ?? 0) + (record.restock ?? 0)
+  if (BEVERAGE_SERVICE_MODULES.includes(mod) || BODEGA_STOCK_MODULES.includes(mod))
+    return (record.initialStock ?? 0) + (record.restock ?? 0)
+  return effectiveStock(mod, record)
+}
+
 function liveStatus(p: ProductRow): StockStatus | null {
   const r = p.records[0]
   if (!r) return null
-  return calcStatus(effectiveStock(p.module, r), p.minStock)
+  return calcStatus(stockForStatus(p.module, r), p.minStock)
+}
+
+function initialDisplay(mod: Module, record: StockRecord | undefined, unit: string): string {
+  if (!record) return '—'
+  if (CARNES_SERVICIO_MODULES.includes(mod) || WEIGHT_MODULES.includes(mod))
+    return record.initialWeight !== null ? `${record.initialWeight.toFixed(1)} ${unit}` : '—'
+  if (BEVERAGE_SERVICE_MODULES.includes(mod) || BODEGA_STOCK_MODULES.includes(mod))
+    return record.initialStock !== null ? `${record.initialStock.toFixed(1)} ${unit}` : '—'
+  return '—'
+}
+
+function restockDisplay(mod: Module, record: StockRecord | undefined, unit: string): string {
+  if (!record || record.restock === null || record.restock === 0 || SMOKED_MODULES.includes(mod)) return '—'
+  return `+${record.restock.toFixed(1)} ${unit}`
 }
 
 function stockDisplay(product: { unit: string; module: Module }, record: StockRecord | undefined): string {
@@ -309,6 +335,8 @@ function ModuleTable({ mod, products, query }: { mod: Module; products: ProductR
           <tr className="border-b border-gray-100 text-xs text-gray-400 uppercase tracking-wide">
             <th className="text-left px-4 py-2 font-medium">Producto</th>
             <th className="text-left px-4 py-2 font-medium hidden sm:table-cell">Categoría</th>
+            <th className="text-right px-4 py-2 font-medium hidden sm:table-cell">Inicial</th>
+            <th className="text-right px-4 py-2 font-medium hidden sm:table-cell">Recarga</th>
             <th className="text-right px-4 py-2 font-medium">Stock</th>
             <th className="text-right px-4 py-2 font-medium hidden sm:table-cell">Mínimo</th>
             <th className="text-center px-4 py-2 font-medium">Estado</th>
@@ -320,7 +348,7 @@ function ModuleTable({ mod, products, query }: { mod: Module; products: ProductR
             <>
               {Object.keys(categories).length > 1 && (
                 <tr key={`cat-${cat}`} className="bg-gray-50/60">
-                  <td colSpan={6} className="px-4 py-1 text-xs font-semibold text-gray-400 uppercase tracking-wide">
+                  <td colSpan={8} className="px-4 py-1 text-xs font-semibold text-gray-400 uppercase tracking-wide">
                     {cat}
                   </td>
                 </tr>
@@ -333,6 +361,12 @@ function ModuleTable({ mod, products, query }: { mod: Module; products: ProductR
                   <tr key={p.id} className={`border-t border-gray-100 ${rowBg}`}>
                     <td className="px-4 py-2.5 font-medium">{highlight(p.name, query)}</td>
                     <td className="px-4 py-2.5 text-gray-500 hidden sm:table-cell">{highlight(p.category, query)}</td>
+                    <td className="px-4 py-2.5 text-right text-gray-500 hidden sm:table-cell">
+                      {initialDisplay(p.module, record, p.unit)}
+                    </td>
+                    <td className="px-4 py-2.5 text-right text-blue-500 hidden sm:table-cell">
+                      {restockDisplay(p.module, record, p.unit)}
+                    </td>
                     <td className="px-4 py-2.5 text-right font-semibold">{stockDisplay(p, record)}</td>
                     <td className="px-4 py-2.5 text-right text-gray-400 hidden sm:table-cell">
                       {p.minStock} {p.unit}
