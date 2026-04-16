@@ -45,18 +45,21 @@ export async function saveInventoryRecord(
     const restock      = parseFloat(formData.get('restock') as string) || 0
     const finalWeight  = parseFloat(formData.get('finalWeight') as string) || 0
     const status = calcStatus(finalWeight, product.minStock)
-    data = { ...data, initialWeight, waste1: midWeight, restock, finalWeight, currentStock: finalWeight, status }
 
     // Descontar delta de peso inicial + recarga de Carnes Ahumadas (idempotente)
+    // waste2 almacena el total ya descontado hoy, para que el delta sea correcto
+    // incluso si el registro existía antes de que se activara esta lógica.
     const existingCarnes = await prisma.dailyRecord.findUnique({
       where: { productId_date: { productId, date: new Date(date) } },
     })
-    const oldInitialWeight = existingCarnes?.initialWeight ?? 0
-    const oldRestock = existingCarnes?.restock ?? 0
-    const delta = (initialWeight - oldInitialWeight) + (restock - oldRestock)
+    const totalShouldDeduct = initialWeight + restock
+    const alreadyDeducted = existingCarnes?.waste2 ?? 0
+    const delta = totalShouldDeduct - alreadyDeducted
     if (delta !== 0) {
       await deductFromModule(product.name, delta, date, session.userId, 'CARNES_AHUMADAS')
     }
+
+    data = { ...data, initialWeight, waste1: midWeight, restock, finalWeight, currentStock: finalWeight, status, waste2: totalShouldDeduct }
   } else if (WEIGHT_MODULES.includes(module)) {
     const units = parseInt(formData.get('units') as string) || 0
     const initialWeight = parseFloat(formData.get('initialWeight') as string) || 0
