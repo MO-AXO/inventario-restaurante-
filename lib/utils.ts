@@ -122,7 +122,7 @@ export const SECTION_GROUPS: { label: string; icon: string; modules: Module[] }[
 export const CARNES_SERVICIO_MODULES: Module[] = ['CARNES_PREPARADAS']
 
 // Which modules use weight tracking (initial/waste1/restock/waste2 → calculated final)
-export const WEIGHT_MODULES: Module[] = ['CARNE_CRUDA', 'VERDURAS']
+export const WEIGHT_MODULES: Module[] = ['CARNE_CRUDA']
 
 // Which modules track smoked meats (units + weight)
 export const SMOKED_MODULES: Module[] = ['CARNES_AHUMADAS']
@@ -143,7 +143,7 @@ export const RESTAURANTE_RESTOCK_MAP: Partial<Record<Module, Module>> = {
 
 // Modules with simple stock entry
 export const SIMPLE_STOCK_MODULES: Module[] = [
-  'BEBIDAS_BODEGA', 'SALSAS', 'COCINA', 'SERVICIO', 'BODEGA', 'DESECHABLES',
+  'VERDURAS', 'BEBIDAS_BODEGA', 'SALSAS', 'COCINA', 'SERVICIO', 'BODEGA', 'DESECHABLES',
   'GUARNICIONES', 'HARINAS_ACEITE_RESTAURANTE',
   'HARINAS_ACEITE_BODEGA', 'LACTEOS_BODEGA',
   'CONDIMENTOS_RESTAURANTE',
