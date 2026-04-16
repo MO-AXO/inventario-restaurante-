@@ -125,6 +125,22 @@ export async function saveInventoryRecord(
     create: data as Parameters<typeof prisma.dailyRecord.create>[0]['data'],
   })
 
+  // Cuando se guarda manualmente en Carnes Ahumadas, resetear el tracker waste2
+  // en el registro de Carnes para Servicio del mismo día y producto.
+  // Esto fuerza que el próximo guardado de Carnes para Servicio re-aplique
+  // la deducción completa desde el nuevo stock de Ahumadas.
+  if (SMOKED_MODULES.includes(module)) {
+    const cprep = await prisma.product.findFirst({
+      where: { name: { equals: product.name, mode: 'insensitive' }, module: 'CARNES_PREPARADAS', active: true },
+    })
+    if (cprep) {
+      await prisma.dailyRecord.updateMany({
+        where: { productId: cprep.id, date: new Date(date) },
+        data: { waste2: null },
+      })
+    }
+  }
+
   // Create alert if CRITICO or BAJO — one unread alert per product max
   if (data.status === 'CRITICO' || data.status === 'BAJO') {
     await prisma.alert.deleteMany({ where: { productId, read: false } })
