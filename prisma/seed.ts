@@ -24,10 +24,10 @@ async function main() {
   const products = [
     // ── CARNES PREPARADAS ──
     { name: 'Pulled Pork',            category: 'Carnes', module: 'CARNES_PREPARADAS', unit: 'LB',    minStock: 5  },
-    { name: 'Costillas',              category: 'Carnes', module: 'CARNES_PREPARADAS', unit: 'LB',    minStock: 5  },
+    { name: 'Costilla de Cerdo',       category: 'Carnes', module: 'CARNES_PREPARADAS', unit: 'LB',    minStock: 5  },
     { name: 'Pork Belly',             category: 'Carnes', module: 'CARNES_PREPARADAS', unit: 'LB',    minStock: 5  },
     { name: 'Brisket',                category: 'Carnes', module: 'CARNES_PREPARADAS', unit: 'LB',    minStock: 5  },
-    { name: 'Pollo',                  category: 'Carnes', module: 'CARNES_PREPARADAS', unit: 'LB',    minStock: 5  },
+    { name: 'Muslos de Pollo',         category: 'Carnes', module: 'CARNES_PREPARADAS', unit: 'LB',    minStock: 5  },
     { name: 'Tortitas para Hamburguesa', category: 'Carnes', module: 'CARNES_PREPARADAS', unit: 'unidad', minStock: 10 },
     { name: 'Texas Twinkies',         category: 'Carnes', module: 'CARNES_PREPARADAS', unit: 'unidad', minStock: 8  },
     { name: 'Puyaso',                 category: 'Carnes', module: 'CARNES_PREPARADAS', unit: 'LB',    minStock: 3  },
