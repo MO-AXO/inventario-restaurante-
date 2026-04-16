@@ -58,13 +58,12 @@ export async function saveInventoryRecord(
       await deductFromModule(product.name, delta, date, session.userId, 'CARNES_AHUMADAS')
     }
   } else if (WEIGHT_MODULES.includes(module)) {
+    const units = parseInt(formData.get('units') as string) || 0
     const initialWeight = parseFloat(formData.get('initialWeight') as string) || 0
     const waste1 = parseFloat(formData.get('waste1') as string) || 0
-    const restock = parseFloat(formData.get('restock') as string) || 0
-    const waste2 = parseFloat(formData.get('waste2') as string) || 0
-    const finalWeight = initialWeight - waste1 + restock - waste2
+    const finalWeight = initialWeight - waste1
     const status = calcStatus(finalWeight, product.minStock)
-    data = { ...data, initialWeight, waste1, restock, waste2, finalWeight, currentStock: finalWeight, status }
+    data = { ...data, units, initialWeight, waste1, finalWeight, currentStock: finalWeight, status }
   } else if (SMOKED_MODULES.includes(module)) {
     const units = parseInt(formData.get('units') as string) || 0
     const weightLb = parseFloat(formData.get('weightLb') as string) || 0
