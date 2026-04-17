@@ -55,8 +55,11 @@ export async function saveInventoryRecord(
     const totalShouldDeduct = initialWeight + restock
     const alreadyDeducted = existingCarnes?.waste2 ?? 0
     const delta = totalShouldDeduct - alreadyDeducted
+    console.log('[CARNES_SERVICIO] producto:', product.name, '| initialWeight:', initialWeight, '| restock:', restock, '| totalShouldDeduct:', totalShouldDeduct, '| alreadyDeducted:', alreadyDeducted, '| delta:', delta)
     if (delta !== 0) {
       await deductFromModule(product.name, delta, date, session.userId, 'CARNES_AHUMADAS')
+    } else {
+      console.log('[CARNES_SERVICIO] delta=0, no se descuenta')
     }
 
     data = { ...data, initialWeight, waste1: midWeight, restock, finalWeight, currentStock: finalWeight, status, waste2: totalShouldDeduct }
@@ -181,6 +184,7 @@ async function deductFromModule(
   const bodegaProduct = await prisma.product.findFirst({
     where: { name: { equals: productName, mode: 'insensitive' }, module: targetModule, active: true },
   })
+  console.log('[deductFromModule] buscando:', productName, 'en', targetModule, '| encontrado:', bodegaProduct?.name ?? 'NO ENCONTRADO')
   if (!bodegaProduct) return
 
   // Buscar stock actual: registro de hoy o el más reciente
@@ -190,6 +194,7 @@ async function deductFromModule(
   })
 
   const currentStock = Math.max(0, (latestRecord?.currentStock ?? 0) - qty)
+  console.log('[deductFromModule] latestRecord.currentStock:', latestRecord?.currentStock ?? 'null', '| qty:', qty, '| nuevo currentStock:', currentStock)
   const status = calcStatus(currentStock, bodegaProduct.minStock)
 
   const isSmokedTarget = SMOKED_MODULES.includes(targetModule)
