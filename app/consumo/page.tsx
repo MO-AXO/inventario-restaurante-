@@ -8,7 +8,7 @@ import { redirect } from 'next/navigation'
 import { CARNES_SERVICIO_MODULES, BEVERAGE_SERVICE_MODULES, todayDate } from '@/lib/utils'
 import { Module } from '@prisma/client'
 
-type Props = { searchParams: Promise<{ dias?: string }> }
+type Props = { searchParams: Promise<{ dias?: string; tab?: string }> }
 
 type DayData = {
   consumption: number | null
@@ -30,9 +30,10 @@ export default async function ConsumoDiarioPage({ searchParams }: Props) {
   const session = await getSession()
   if (!session || session.role !== 'OWNER') redirect('/dashboard')
 
-  const { dias: diasParam } = await searchParams
+  const { dias: diasParam, tab: tabParam } = await searchParams
   const dias = parseInt(diasParam ?? '7')
   const validDias = [7, 14, 30].includes(dias) ? dias : 7
+  const activeTab = tabParam === 'historial' ? 'historial' : 'live'
 
   const today = todayDate()
   const startDate = new Date(today)
@@ -49,6 +50,7 @@ export default async function ConsumoDiarioPage({ searchParams }: Props) {
 
   const targetModules: Module[] = [...CARNES_SERVICIO_MODULES, ...BEVERAGE_SERVICE_MODULES]
 
+  // --- Live tab data ---
   const records = await prisma.dailyRecord.findMany({
     where: {
       date: { gte: startDate },
@@ -110,13 +112,41 @@ export default async function ConsumoDiarioPage({ searchParams }: Props) {
     .filter(p => BEVERAGE_SERVICE_MODULES.includes(p.module))
     .sort((a, b) => a.name.localeCompare(b.name))
 
+  // --- Historial tab data: snapshots from day closes ---
+  const snapshots = await prisma.dayConsumptionSnapshot.findMany({
+    where: { date: { gte: startDate } },
+    orderBy: [{ date: 'desc' }, { productName: 'asc' }],
+  })
+
+  // Group snapshots by date
+  type SnapDay = {
+    date: string
+    carnes: typeof snapshots
+    bebidas: typeof snapshots
+    total: number
+  }
+  const snapByDate: Record<string, SnapDay> = {}
+  for (const s of snapshots) {
+    const dateStr = s.date.toISOString().split('T')[0]
+    if (!snapByDate[dateStr]) {
+      snapByDate[dateStr] = { date: dateStr, carnes: [], bebidas: [], total: 0 }
+    }
+    if (CARNES_SERVICIO_MODULES.includes(s.module)) {
+      snapByDate[dateStr].carnes.push(s)
+    } else {
+      snapByDate[dateStr].bebidas.push(s)
+    }
+    snapByDate[dateStr].total += s.consumption
+  }
+  const snapDays = Object.values(snapByDate).sort((a, b) => b.date.localeCompare(a.date))
+
   return (
     <div className="min-h-screen flex flex-col">
       <Navbar />
       <main className="flex-1 p-4 max-w-full mx-auto w-full">
 
         {/* Header */}
-        <div className="mb-6 flex items-center justify-between max-w-6xl mx-auto">
+        <div className="mb-4 flex items-center justify-between max-w-6xl mx-auto">
           <div>
             <h1 className="text-xl font-bold">Consumo diario</h1>
             <p className="text-sm text-gray-500">Últimos {validDias} días</p>
@@ -125,7 +155,7 @@ export default async function ConsumoDiarioPage({ searchParams }: Props) {
             {[7, 14, 30].map((d) => (
               <Link
                 key={d}
-                href={`/consumo?dias=${d}`}
+                href={`/consumo?dias=${d}&tab=${activeTab}`}
                 className={`text-sm px-3 py-1.5 rounded-xl font-medium transition ${
                   validDias === d
                     ? 'bg-orange-500 text-white'
@@ -138,41 +168,196 @@ export default async function ConsumoDiarioPage({ searchParams }: Props) {
           </div>
         </div>
 
-        <div className="space-y-8">
-          {/* CARNES PARA SERVICIO */}
-          {carnesProducts.length > 0 && (
-            <Section
-              title="Carnes para Servicio"
-              icon="🥩"
-              products={carnesProducts}
-              dates={datesNewest}
-              showMid
-            />
-          )}
-
-          {/* BEBIDAS SERVICIO */}
-          {bebidasProducts.length > 0 && (
-            <Section
-              title="Bebidas Servicio"
-              icon="🥤"
-              products={bebidasProducts}
-              dates={datesNewest}
-              showMid={false}
-            />
-          )}
-
-          {carnesProducts.length === 0 && bebidasProducts.length === 0 && (
-            <div className="bg-white rounded-2xl border border-gray-200 p-8 text-center text-gray-500">
-              No hay registros de consumo en este período.
-            </div>
-          )}
+        {/* Tabs */}
+        <div className="max-w-6xl mx-auto mb-6 flex gap-1 bg-gray-100 rounded-xl p-1 w-fit">
+          <Link
+            href={`/consumo?dias=${validDias}&tab=live`}
+            className={`px-4 py-1.5 rounded-lg text-sm font-medium transition ${
+              activeTab === 'live'
+                ? 'bg-white shadow text-gray-900'
+                : 'text-gray-500 hover:text-gray-700'
+            }`}
+          >
+            En vivo
+          </Link>
+          <Link
+            href={`/consumo?dias=${validDias}&tab=historial`}
+            className={`px-4 py-1.5 rounded-lg text-sm font-medium transition ${
+              activeTab === 'historial'
+                ? 'bg-white shadow text-gray-900'
+                : 'text-gray-500 hover:text-gray-700'
+            }`}
+          >
+            Historial de cierres
+          </Link>
         </div>
+
+        {/* LIVE TAB */}
+        {activeTab === 'live' && (
+          <div className="space-y-8">
+            {carnesProducts.length > 0 && (
+              <Section
+                title="Carnes para Servicio"
+                icon="🥩"
+                products={carnesProducts}
+                dates={datesNewest}
+                showMid
+              />
+            )}
+
+            {bebidasProducts.length > 0 && (
+              <Section
+                title="Bebidas Servicio"
+                icon="🥤"
+                products={bebidasProducts}
+                dates={datesNewest}
+                showMid={false}
+              />
+            )}
+
+            {carnesProducts.length === 0 && bebidasProducts.length === 0 && (
+              <div className="bg-white rounded-2xl border border-gray-200 p-8 text-center text-gray-500">
+                No hay registros de consumo en este período.
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* HISTORIAL TAB */}
+        {activeTab === 'historial' && (
+          <div className="space-y-6 max-w-4xl mx-auto">
+            {snapDays.length === 0 ? (
+              <div className="bg-white rounded-2xl border border-gray-200 p-8 text-center text-gray-500">
+                No hay cierres de día registrados en este período.
+                <p className="text-xs mt-2">Los datos se guardan al presionar &ldquo;Cerrar día&rdquo; en el dashboard.</p>
+              </div>
+            ) : (
+              snapDays.map((day) => (
+                <SnapDayCard key={day.date} day={day} />
+              ))
+            )}
+          </div>
+        )}
+
       </main>
     </div>
   )
 }
 
-// ---- Section component ----
+// ---- Snapshot Day Card ----
+
+type SnapDayCardProps = {
+  day: {
+    date: string
+    carnes: Array<{
+      id: string
+      productName: string
+      unit: string
+      consumption: number
+      initial: number | null
+      restock: number | null
+      final: number | null
+    }>
+    bebidas: Array<{
+      id: string
+      productName: string
+      unit: string
+      consumption: number
+      initial: number | null
+      restock: number | null
+      final: number | null
+    }>
+    total: number
+  }
+}
+
+function SnapDayCard({ day }: SnapDayCardProps) {
+  const label = new Date(day.date + 'T12:00:00').toLocaleDateString('es-CR', {
+    weekday: 'long',
+    year: 'numeric',
+    month: 'long',
+    day: 'numeric',
+  })
+
+  return (
+    <div className="bg-white rounded-2xl border border-gray-200 overflow-hidden shadow-sm">
+      <div className="bg-gray-50 border-b border-gray-200 px-4 py-3 flex items-center justify-between">
+        <div>
+          <span className="font-semibold text-gray-800 capitalize">{label}</span>
+        </div>
+        <span className="text-sm font-bold text-orange-600 bg-orange-50 px-3 py-1 rounded-xl">
+          Total: {day.total.toFixed(1)}
+        </span>
+      </div>
+
+      {day.carnes.length > 0 && (
+        <SnapSection title="Carnes para Servicio" icon="🥩" rows={day.carnes} />
+      )}
+      {day.bebidas.length > 0 && (
+        <SnapSection title="Bebidas Servicio" icon="🥤" rows={day.bebidas} />
+      )}
+    </div>
+  )
+}
+
+function SnapSection({
+  title,
+  icon,
+  rows,
+}: {
+  title: string
+  icon: string
+  rows: Array<{
+    id: string
+    productName: string
+    unit: string
+    consumption: number
+    initial: number | null
+    restock: number | null
+    final: number | null
+  }>
+}) {
+  return (
+    <div>
+      <div className="px-4 py-2 border-b border-gray-100 flex items-center gap-2">
+        <span className="text-base">{icon}</span>
+        <span className="text-sm font-semibold text-gray-700">{title}</span>
+      </div>
+      <table className="w-full text-sm">
+        <thead>
+          <tr className="text-xs text-gray-400 border-b border-gray-100">
+            <th className="text-left px-4 py-2 font-medium">Producto</th>
+            <th className="text-right px-4 py-2 font-medium">Inicial</th>
+            <th className="text-right px-4 py-2 font-medium">Recarga</th>
+            <th className="text-right px-4 py-2 font-medium">Final</th>
+            <th className="text-right px-4 py-2 font-medium text-orange-600">Consumo</th>
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map((r) => (
+            <tr key={r.id} className="border-b border-gray-50 last:border-0 hover:bg-gray-50/50">
+              <td className="px-4 py-2.5 font-medium">{r.productName}</td>
+              <td className="px-4 py-2.5 text-right text-gray-500">
+                {r.initial !== null ? `${r.initial.toFixed(1)} ${r.unit}` : '—'}
+              </td>
+              <td className="px-4 py-2.5 text-right text-blue-500">
+                {r.restock !== null && r.restock > 0 ? `+${r.restock.toFixed(1)} ${r.unit}` : '—'}
+              </td>
+              <td className="px-4 py-2.5 text-right text-gray-500">
+                {r.final !== null ? `${r.final.toFixed(1)} ${r.unit}` : '—'}
+              </td>
+              <td className="px-4 py-2.5 text-right font-bold text-orange-600">
+                {r.consumption.toFixed(1)} {r.unit}
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  )
+}
+
+// ---- Section component (live tab) ----
 
 function Section({
   title,

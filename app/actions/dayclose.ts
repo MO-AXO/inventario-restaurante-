@@ -3,7 +3,10 @@
 import { revalidatePath } from 'next/cache'
 import { prisma } from '@/lib/db'
 import { getSession } from '@/lib/auth'
-import { todayDate } from '@/lib/utils'
+import { todayDate, CARNES_SERVICIO_MODULES, BEVERAGE_SERVICE_MODULES } from '@/lib/utils'
+import { Module } from '@prisma/client'
+
+const CONSUMPTION_MODULES: Module[] = [...CARNES_SERVICIO_MODULES, ...BEVERAGE_SERVICE_MODULES]
 
 export async function closeDayAction(): Promise<void> {
   const session = await getSession()
@@ -13,13 +16,76 @@ export async function closeDayAction(): Promise<void> {
   if (!user) return
 
   const today = todayDate()
+  const todayDate_ = new Date(today)
+
+  // Snapshot today's consumption before closing
+  const records = await prisma.dailyRecord.findMany({
+    where: {
+      date: todayDate_,
+      product: { active: true, module: { in: CONSUMPTION_MODULES } },
+    },
+    include: {
+      product: { select: { name: true, module: true, unit: true } },
+    },
+  })
+
+  for (const r of records) {
+    const mod = r.product.module as Module
+    let consumption: number | null = null
+    let initial: number | null = null
+    let restock: number | null = null
+    let final: number | null = null
+
+    if (CARNES_SERVICIO_MODULES.includes(mod)) {
+      initial = r.initialWeight
+      restock = r.restock
+      final = r.finalWeight
+      consumption =
+        initial !== null && final !== null
+          ? (initial ?? 0) + (restock ?? 0) - final
+          : null
+    } else if (BEVERAGE_SERVICE_MODULES.includes(mod)) {
+      initial = r.initialStock
+      restock = r.restock
+      final = r.finalStock
+      consumption = r.consumption
+    }
+
+    if (consumption === null) continue
+
+    await prisma.dayConsumptionSnapshot.upsert({
+      where: { productId_date: { productId: r.productId, date: todayDate_ } },
+      update: {
+        productName: r.product.name,
+        module: mod,
+        unit: r.product.unit,
+        consumption,
+        initial,
+        restock,
+        final,
+      },
+      create: {
+        date: todayDate_,
+        productId: r.productId,
+        productName: r.product.name,
+        module: mod,
+        unit: r.product.unit,
+        consumption,
+        initial,
+        restock,
+        final,
+      },
+    })
+  }
+
   await prisma.dayClose.upsert({
-    where: { date: new Date(today) },
+    where: { date: todayDate_ },
     update: { closedAt: new Date(), closedByName: user.name },
-    create: { date: new Date(today), closedByName: user.name },
+    create: { date: todayDate_, closedByName: user.name },
   })
 
   revalidatePath('/dashboard')
+  revalidatePath('/consumo')
 }
 
 export async function reopenDayAction(): Promise<void> {
@@ -30,4 +96,5 @@ export async function reopenDayAction(): Promise<void> {
   await prisma.dayClose.deleteMany({ where: { date: new Date(today) } })
 
   revalidatePath('/dashboard')
+  revalidatePath('/consumo')
 }

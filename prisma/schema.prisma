@@ -128,3 +128,19 @@ model DayClose {
   closedAt     DateTime @default(now())
   closedByName String
 }
+
+model DayConsumptionSnapshot {
+  id          String   @id @default(cuid())
+  date        DateTime @db.Date
+  productId   String
+  productName String
+  module      Module
+  unit        String
+  consumption Float
+  initial     Float?
+  restock     Float?
+  final       Float?
+  createdAt   DateTime @default(now())
+
+  @@unique([productId, date])
+}
