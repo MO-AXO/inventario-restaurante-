@@ -11,9 +11,11 @@ import { Module } from '@prisma/client'
 type Props = { searchParams: Promise<{ dias?: string; tab?: string }> }
 
 type DayData = {
-  consumption: number | null
+  consumption: number | null       // total consumption
+  consumoMedioDia: number | null   // carnes only: inicial - final_medio
+  consumoNoche: number | null      // carnes only: final_medio + recarga - final_dia
   initial: number | null
-  mid: number | null      // mid-day weight (carnes only)
+  mid: number | null               // mid-day weight (carnes only)
   restock: number | null
   final: number | null
 }
@@ -81,6 +83,8 @@ export default async function ConsumoDiarioPage({ searchParams }: Props) {
     }
 
     let consumption: number | null = null
+    let consumoMedioDia: number | null = null
+    let consumoNoche: number | null = null
     let initial: number | null = null
     let mid: number | null = null
     let restock: number | null = null
@@ -91,9 +95,15 @@ export default async function ConsumoDiarioPage({ searchParams }: Props) {
       mid = r.waste1          // waste1 stores mid-day weight
       restock = r.restock
       final = r.finalWeight
-      consumption = initial !== null && final !== null
-        ? (initial ?? 0) + (restock ?? 0) - final
-        : null
+      if (initial !== null && mid !== null) {
+        consumoMedioDia = initial - mid
+      }
+      if (mid !== null && final !== null) {
+        consumoNoche = mid + (restock ?? 0) - final
+      }
+      if (initial !== null && final !== null) {
+        consumption = (initial) + (restock ?? 0) - final
+      }
     } else if (BEVERAGE_SERVICE_MODULES.includes(mod)) {
       initial = r.initialStock
       restock = r.restock
@@ -101,7 +111,7 @@ export default async function ConsumoDiarioPage({ searchParams }: Props) {
       consumption = r.consumption
     }
 
-    productMap[pid].days[dateStr] = { consumption, initial, mid, restock, final }
+    productMap[pid].days[dateStr] = { consumption, consumoMedioDia, consumoNoche, initial, mid, restock, final }
   }
 
   const carnesProducts = Object.values(productMap)
@@ -246,27 +256,24 @@ export default async function ConsumoDiarioPage({ searchParams }: Props) {
 
 // ---- Snapshot Day Card ----
 
+type SnapRow = {
+  id: string
+  productName: string
+  unit: string
+  consumption: number
+  consumoMedioDia: number | null
+  consumoNoche: number | null
+  initial: number | null
+  mid: number | null
+  restock: number | null
+  final: number | null
+}
+
 type SnapDayCardProps = {
   day: {
     date: string
-    carnes: Array<{
-      id: string
-      productName: string
-      unit: string
-      consumption: number
-      initial: number | null
-      restock: number | null
-      final: number | null
-    }>
-    bebidas: Array<{
-      id: string
-      productName: string
-      unit: string
-      consumption: number
-      initial: number | null
-      restock: number | null
-      final: number | null
-    }>
+    carnes: SnapRow[]
+    bebidas: SnapRow[]
     total: number
   }
 }
@@ -291,10 +298,10 @@ function SnapDayCard({ day }: SnapDayCardProps) {
       </div>
 
       {day.carnes.length > 0 && (
-        <SnapSection title="Carnes para Servicio" icon="🥩" rows={day.carnes} />
+        <SnapSection title="Carnes para Servicio" icon="🥩" rows={day.carnes} showBreakdown />
       )}
       {day.bebidas.length > 0 && (
-        <SnapSection title="Bebidas Servicio" icon="🥤" rows={day.bebidas} />
+        <SnapSection title="Bebidas Servicio" icon="🥤" rows={day.bebidas} showBreakdown={false} />
       )}
     </div>
   )
@@ -304,18 +311,12 @@ function SnapSection({
   title,
   icon,
   rows,
+  showBreakdown,
 }: {
   title: string
   icon: string
-  rows: Array<{
-    id: string
-    productName: string
-    unit: string
-    consumption: number
-    initial: number | null
-    restock: number | null
-    final: number | null
-  }>
+  rows: SnapRow[]
+  showBreakdown: boolean
 }) {
   return (
     <div>
@@ -328,9 +329,12 @@ function SnapSection({
           <tr className="text-xs text-gray-400 border-b border-gray-100">
             <th className="text-left px-4 py-2 font-medium">Producto</th>
             <th className="text-right px-4 py-2 font-medium">Inicial</th>
+            {showBreakdown && <th className="text-right px-4 py-2 font-medium">F. Medio Día</th>}
             <th className="text-right px-4 py-2 font-medium">Recarga</th>
             <th className="text-right px-4 py-2 font-medium">Final</th>
-            <th className="text-right px-4 py-2 font-medium text-orange-600">Consumo</th>
+            {showBreakdown && <th className="text-right px-4 py-2 font-medium text-amber-600">☀ Medio Día</th>}
+            {showBreakdown && <th className="text-right px-4 py-2 font-medium text-indigo-500">🌙 Noche</th>}
+            <th className="text-right px-4 py-2 font-medium text-orange-600">Total</th>
           </tr>
         </thead>
         <tbody>
@@ -340,12 +344,27 @@ function SnapSection({
               <td className="px-4 py-2.5 text-right text-gray-500">
                 {r.initial !== null ? `${r.initial.toFixed(1)} ${r.unit}` : '—'}
               </td>
+              {showBreakdown && (
+                <td className="px-4 py-2.5 text-right text-gray-500">
+                  {r.mid !== null ? `${r.mid.toFixed(1)} ${r.unit}` : '—'}
+                </td>
+              )}
               <td className="px-4 py-2.5 text-right text-blue-500">
                 {r.restock !== null && r.restock > 0 ? `+${r.restock.toFixed(1)} ${r.unit}` : '—'}
               </td>
               <td className="px-4 py-2.5 text-right text-gray-500">
                 {r.final !== null ? `${r.final.toFixed(1)} ${r.unit}` : '—'}
               </td>
+              {showBreakdown && (
+                <td className="px-4 py-2.5 text-right font-semibold text-amber-600">
+                  {r.consumoMedioDia !== null ? `${r.consumoMedioDia.toFixed(1)} ${r.unit}` : '—'}
+                </td>
+              )}
+              {showBreakdown && (
+                <td className="px-4 py-2.5 text-right font-semibold text-indigo-500">
+                  {r.consumoNoche !== null ? `${r.consumoNoche.toFixed(1)} ${r.unit}` : '—'}
+                </td>
+              )}
               <td className="px-4 py-2.5 text-right font-bold text-orange-600">
                 {r.consumption.toFixed(1)} {r.unit}
               </td>
@@ -440,15 +459,33 @@ function Section({
                             <div className={`font-bold text-base ${c > 0 ? 'text-gray-800' : 'text-gray-300'}`}>
                               {c.toFixed(1)}
                             </div>
-                            {day && (day.initial !== null || day.restock !== null || day.final !== null) && (
-                              <div className="text-gray-400 leading-tight mt-0.5" style={{ fontSize: '10px' }}>
-                                {day.initial !== null && <span>I:{day.initial.toFixed(1)} </span>}
-                                {showMid && day.mid !== null && <span>M:{day.mid.toFixed(1)} </span>}
-                                {day.restock !== null && day.restock > 0 && (
-                                  <span className="text-blue-400">+{day.restock.toFixed(1)} </span>
+                            {showMid && day && (day.consumoMedioDia !== null || day.consumoNoche !== null) ? (
+                              <div className="leading-tight mt-0.5" style={{ fontSize: '10px' }}>
+                                {day.consumoMedioDia !== null && (
+                                  <div className="text-gray-500">☀ {day.consumoMedioDia.toFixed(1)}</div>
                                 )}
-                                {day.final !== null && <span>F:{day.final.toFixed(1)}</span>}
+                                {day.consumoNoche !== null && (
+                                  <div className="text-indigo-400">🌙 {day.consumoNoche.toFixed(1)}</div>
+                                )}
+                                {day.initial !== null && (
+                                  <div className="text-gray-400">
+                                    I:{day.initial.toFixed(1)}
+                                    {day.mid !== null && ` M:${day.mid.toFixed(1)}`}
+                                    {day.restock !== null && day.restock > 0 && ` +${day.restock.toFixed(1)}`}
+                                    {day.final !== null && ` F:${day.final.toFixed(1)}`}
+                                  </div>
+                                )}
                               </div>
+                            ) : (
+                              day && (day.initial !== null || day.restock !== null || day.final !== null) && (
+                                <div className="text-gray-400 leading-tight mt-0.5" style={{ fontSize: '10px' }}>
+                                  {day.initial !== null && <span>I:{day.initial.toFixed(1)} </span>}
+                                  {day.restock !== null && day.restock > 0 && (
+                                    <span className="text-blue-400">+{day.restock.toFixed(1)} </span>
+                                  )}
+                                  {day.final !== null && <span>F:{day.final.toFixed(1)}</span>}
+                                </div>
+                              )
                             )}
                           </div>
                         ) : (

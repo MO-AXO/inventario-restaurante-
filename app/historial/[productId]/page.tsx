@@ -66,7 +66,9 @@ export default async function HistorialPage({ params }: Props) {
                       <th className="text-right px-3 py-3 font-semibold">F. Medio Día</th>
                       <th className="text-right px-3 py-3 font-semibold">Recarga</th>
                       <th className="text-right px-3 py-3 font-semibold">Final Día</th>
-                      <th className="text-right px-3 py-3 font-semibold">Consumo</th>
+                      <th className="text-right px-3 py-3 font-semibold text-amber-600">☀ Medio Día</th>
+                      <th className="text-right px-3 py-3 font-semibold text-indigo-500">🌙 Noche</th>
+                      <th className="text-right px-3 py-3 font-semibold text-orange-600">Total</th>
                     </>
                   )}
                   {isWeight && (
@@ -113,9 +115,19 @@ export default async function HistorialPage({ params }: Props) {
                         <td className="px-3 py-3 text-right">{r.waste1?.toFixed(1) ?? '—'}</td>
                         <td className="px-3 py-3 text-right">{r.restock ? r.restock.toFixed(1) : '—'}</td>
                         <td className="px-3 py-3 text-right font-semibold">{r.finalWeight?.toFixed(1) ?? '—'}</td>
-                        <td className="px-3 py-3 text-right font-semibold text-orange-600">
+                        <td className="px-3 py-3 text-right font-semibold text-amber-600">
+                          {r.initialWeight !== null && r.waste1 !== null
+                            ? (r.initialWeight - r.waste1).toFixed(1)
+                            : '—'}
+                        </td>
+                        <td className="px-3 py-3 text-right font-semibold text-indigo-500">
+                          {r.waste1 !== null && r.finalWeight !== null
+                            ? (r.waste1 + (r.restock ?? 0) - r.finalWeight).toFixed(1)
+                            : '—'}
+                        </td>
+                        <td className="px-3 py-3 text-right font-bold text-orange-600">
                           {r.initialWeight !== null && r.finalWeight !== null
-                            ? ((r.initialWeight ?? 0) + (r.restock ?? 0) - (r.finalWeight ?? 0)).toFixed(1)
+                            ? (r.initialWeight + (r.restock ?? 0) - r.finalWeight).toFixed(1)
                             : '—'}
                         </td>
                       </>

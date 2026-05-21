@@ -202,16 +202,36 @@ export default function InventoryForm({ product, today, formType, existing, isEx
                     <input type="number" name="finalWeight" step="0.01" min="0" inputMode="decimal"
                       defaultValue={existing?.finalWeight ?? ''} className={inputClass} />
                   </div>
-                  {existing && existing.initialWeight !== null && existing.finalWeight !== null && (
-                    <div className="col-span-2 bg-gray-100 rounded-xl px-3 py-2">
-                      <span className="text-xs text-gray-600">Consumo del día: </span>
-                      <span className="font-bold">
-                        {(
-                          (existing.initialWeight ?? 0) +
-                          (existing.restock ?? 0) -
-                          (existing.finalWeight ?? 0)
-                        ).toFixed(2)} {product.unit}
-                      </span>
+                  {existing && existing.initialWeight !== null && (
+                    <div className="col-span-2 space-y-1.5">
+                      {existing.waste1 !== null && (
+                        <div className="bg-gray-100 rounded-xl px-3 py-2 flex justify-between items-center">
+                          <span className="text-xs text-gray-600">Consumo medio día:</span>
+                          <span className="font-bold text-sm">
+                            {((existing.initialWeight ?? 0) - (existing.waste1 ?? 0)).toFixed(2)} {product.unit}
+                          </span>
+                        </div>
+                      )}
+                      {existing.waste1 !== null && existing.finalWeight !== null && (
+                        <div className="bg-gray-100 rounded-xl px-3 py-2 flex justify-between items-center">
+                          <span className="text-xs text-gray-600">Consumo noche:</span>
+                          <span className="font-bold text-sm">
+                            {((existing.waste1 ?? 0) + (existing.restock ?? 0) - (existing.finalWeight ?? 0)).toFixed(2)} {product.unit}
+                          </span>
+                        </div>
+                      )}
+                      {existing.finalWeight !== null && (
+                        <div className="bg-orange-50 border border-orange-200 rounded-xl px-3 py-2 flex justify-between items-center">
+                          <span className="text-xs font-semibold text-orange-700">Consumo total del día:</span>
+                          <span className="font-bold text-orange-700">
+                            {(
+                              (existing.initialWeight ?? 0) +
+                              (existing.restock ?? 0) -
+                              (existing.finalWeight ?? 0)
+                            ).toFixed(2)} {product.unit}
+                          </span>
+                        </div>
+                      )}
                     </div>
                   )}
                 </div>

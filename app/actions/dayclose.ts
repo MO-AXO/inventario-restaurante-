@@ -36,13 +36,24 @@ export async function closeDayAction(): Promise<void> {
     let restock: number | null = null
     let final: number | null = null
 
+    let consumoMedioDia: number | null = null
+    let consumoNoche: number | null = null
+    let mid: number | null = null
+
     if (CARNES_SERVICIO_MODULES.includes(mod)) {
       initial = r.initialWeight
+      mid = r.waste1
       restock = r.restock
       final = r.finalWeight
+      if (initial !== null && mid !== null) {
+        consumoMedioDia = initial - mid
+      }
+      if (mid !== null && final !== null) {
+        consumoNoche = mid + (restock ?? 0) - final
+      }
       consumption =
         initial !== null && final !== null
-          ? (initial ?? 0) + (restock ?? 0) - final
+          ? initial + (restock ?? 0) - final
           : null
     } else if (BEVERAGE_SERVICE_MODULES.includes(mod)) {
       initial = r.initialStock
@@ -60,7 +71,10 @@ export async function closeDayAction(): Promise<void> {
         module: mod,
         unit: r.product.unit,
         consumption,
+        consumoMedioDia,
+        consumoNoche,
         initial,
+        mid,
         restock,
         final,
       },
@@ -71,7 +85,10 @@ export async function closeDayAction(): Promise<void> {
         module: mod,
         unit: r.product.unit,
         consumption,
+        consumoMedioDia,
+        consumoNoche,
         initial,
+        mid,
         restock,
         final,
       },
