@@ -2,7 +2,7 @@ export const dynamic = 'force-dynamic'
 
 import Link from 'next/link'
 import { prisma } from '@/lib/db'
-import Navbar from '@/components/Navbar'
+import AppSidebar from '@/components/AppSidebar'
 import {
   MODULE_LABELS,
   MODULE_ICONS,
@@ -119,9 +119,9 @@ export default async function DashboardPage() {
     .slice(0, 10)
 
   return (
-    <div className="min-h-screen flex flex-col">
-      <Navbar />
-      <main className="flex-1 p-4 max-w-5xl mx-auto w-full">
+    <div className="min-h-screen flex bg-[#f5f6f8]">
+      <AppSidebar />
+      <main className="min-w-0 flex-1 p-4 lg:p-7">
         <div className="mb-6 flex items-start justify-between gap-4">
           <div>
             <h1 className="text-2xl font-bold text-gray-900">{isOwner ? 'Dashboard' : 'Inventario'}</h1>
