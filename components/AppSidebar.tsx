@@ -6,7 +6,7 @@ const navigation = [
   { label: 'Dashboard', href: '/dashboard', icon: '▦' },
   { label: 'Resumen', href: '/resumen', icon: '▥' },
   { label: 'Alertas', href: '/alertas', icon: '⚠' },
-  { label: 'Productos', href: '/admin/productos', icon: '▤', ownerOnly: true },
+  { label: 'Productos', href: '/admin', icon: '▤', ownerOnly: true },
   { label: 'Inventario', href: '/dashboard', icon: '▣' },
   { label: 'Compras', href: '/compras', icon: '⌂', ownerOnly: true },
   { label: 'Consumo', href: '/consumo', icon: '▱', ownerOnly: true },

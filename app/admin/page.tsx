@@ -1,6 +1,6 @@
 export const dynamic = 'force-dynamic'
 
-import Navbar from '@/components/Navbar'
+import AppSidebar from '@/components/AppSidebar'
 import Link from 'next/link'
 import { prisma } from '@/lib/db'
 import { getSession } from '@/lib/auth'
@@ -28,9 +28,9 @@ export default async function AdminPage() {
   const inactiveProducts = products.filter((p) => !p.active)
 
   return (
-    <div className="min-h-screen flex flex-col">
-      <Navbar />
-      <main className="flex-1 p-4 max-w-3xl mx-auto w-full space-y-8">
+    <div className="min-h-screen flex bg-[#f5f6f8]">
+      <AppSidebar />
+      <main className="min-w-0 flex-1 p-4 lg:p-7 space-y-8">
         <div className="flex items-center justify-between">
           <h1 className="text-xl font-bold">Administración</h1>
           <Link href="/admin/minimos" className="text-sm bg-orange-500 hover:bg-orange-600 text-white px-4 py-2 rounded-xl font-medium transition">

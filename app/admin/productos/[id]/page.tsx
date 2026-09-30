@@ -4,7 +4,7 @@ import { notFound, redirect } from 'next/navigation'
 import Link from 'next/link'
 import { prisma } from '@/lib/db'
 import { getSession } from '@/lib/auth'
-import Navbar from '@/components/Navbar'
+import AppSidebar from '@/components/AppSidebar'
 import { MODULE_LABELS } from '@/lib/utils'
 import { Module } from '@prisma/client'
 import { updateProduct } from '@/app/actions/admin'
@@ -22,9 +22,9 @@ export default async function EditProductPage({ params }: Props) {
   const modules = Object.keys(MODULE_LABELS) as Module[]
 
   return (
-    <div className="min-h-screen flex flex-col">
-      <Navbar />
-      <main className="flex-1 p-4 max-w-lg mx-auto w-full">
+    <div className="min-h-screen flex bg-[#f5f6f8]">
+      <AppSidebar />
+      <main className="min-w-0 flex-1 p-4 lg:p-7 max-w-2xl">
         <div className="mb-5">
           <Link href="/admin" className="text-sm text-orange-500 font-medium">
             ← Administración
