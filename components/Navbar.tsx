@@ -11,64 +11,91 @@ export default async function Navbar() {
   const [user, unread] = await Promise.all([getCurrentUser(), getUnreadCount()])
 
   return (
-    <nav className="bg-gray-900 text-white px-4 py-3 flex items-center justify-between sticky top-0 z-50 shadow-lg">
-      <Link href="/dashboard" className="text-lg font-bold flex items-center gap-2">
-        🍖 <span className="hidden sm:inline">Inventario</span>
+    <nav className="bg-[#211915] text-white px-3 sm:px-5 py-2.5 flex items-center justify-between sticky top-0 z-50 shadow-lg border-b border-orange-500/30">
+      <Link href="/dashboard" className="flex items-center gap-2.5 shrink-0 group" aria-label="Pig Brothers, inicio">
+        <span className="w-9 h-9 rounded-xl bg-gradient-to-br from-orange-400 to-orange-700 flex items-center justify-center text-xl shadow-inner group-hover:scale-105 transition">🐷</span>
+        <span className="hidden sm:block leading-tight">
+          <span className="block text-sm font-extrabold tracking-wide">Pig Brothers</span>
+          <span className="block text-[10px] text-orange-200/70 uppercase tracking-widest">Inventario</span>
+        </span>
       </Link>
 
-      <div className="flex items-center gap-3">
-        <Link
-          href="/resumen"
-          className="p-2 rounded-lg hover:bg-gray-700 transition"
-          title="Resumen de inventario"
-        >
-          <span className="text-xl">📋</span>
-        </Link>
-        <Link
-          href="/alertas"
-          className="relative p-2 rounded-lg hover:bg-gray-700 transition"
-          title="Alertas"
-        >
-          <span className="text-xl">🔔</span>
-          {unread > 0 && (
-            <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs font-bold w-5 h-5 rounded-full flex items-center justify-center">
-              {unread > 9 ? '9+' : unread}
-            </span>
+      <div className="flex items-center gap-2 sm:gap-6 min-w-0">
+        <div className="flex items-center gap-1 sm:gap-2 overflow-x-auto">
+          <Link
+            href="/resumen"
+            className="flex items-center gap-2 px-2.5 py-2 rounded-lg text-sm font-medium text-gray-200 hover:bg-gray-700 hover:text-white transition whitespace-nowrap"
+            title="Resumen de inventario"
+          >
+            <span>📋</span>
+            <span className="hidden md:inline">Resumen</span>
+          </Link>
+          <Link
+            href="/alertas"
+            className="relative flex items-center gap-2 px-2.5 py-2 rounded-lg text-sm font-medium text-gray-200 hover:bg-gray-700 hover:text-white transition whitespace-nowrap"
+            title="Alertas"
+          >
+            <span>🔔</span>
+            <span className="hidden md:inline">Alertas</span>
+            {unread > 0 && (
+              <span className="absolute top-0 right-0 bg-red-500 text-white text-[10px] font-bold min-w-4 h-4 px-1 rounded-full flex items-center justify-center">
+                {unread > 9 ? '9+' : unread}
+              </span>
+            )}
+          </Link>
+
+          {user?.role === 'OWNER' && (
+            <>
+              <Link
+                href="/compras"
+                className="flex items-center gap-2 px-2.5 py-2 rounded-lg text-sm font-medium text-gray-200 hover:bg-gray-700 hover:text-white transition whitespace-nowrap"
+                title="Añadir inventario"
+              >
+                <span>🛒</span>
+                <span className="hidden md:inline">Añadir inventario</span>
+              </Link>
+              <Link
+                href="/recarga-restaurante"
+                className="flex items-center gap-2 px-2.5 py-2 rounded-lg text-sm font-medium text-gray-200 hover:bg-gray-700 hover:text-white transition whitespace-nowrap"
+                title="Recarga Restaurante"
+              >
+                <span>🔄</span>
+                <span className="hidden md:inline">Recarga Restaurante</span>
+              </Link>
+              <Link
+                href="/consumo"
+                className="flex items-center gap-2 px-2.5 py-2 rounded-lg text-sm font-medium text-gray-200 hover:bg-gray-700 hover:text-white transition whitespace-nowrap"
+                title="Consumo diario"
+              >
+                <span>📊</span>
+                <span className="hidden md:inline">Consumo</span>
+              </Link>
+              <Link
+                href="/medio-dia"
+                className="flex items-center gap-2 px-2.5 py-2 rounded-lg text-sm font-medium text-gray-200 hover:bg-gray-700 hover:text-white transition whitespace-nowrap"
+                title="Corte de mediodía"
+              >
+                <span>🕛</span>
+                <span className="hidden md:inline">Mediodía</span>
+              </Link>
+              <Link
+                href="/admin"
+                className="flex items-center gap-2 px-2.5 py-2 rounded-lg text-sm font-medium text-gray-200 hover:bg-gray-700 hover:text-white transition whitespace-nowrap"
+                title="Administración"
+              >
+                <span>⚙️</span>
+                <span className="hidden md:inline">Administración</span>
+              </Link>
+            </>
           )}
-        </Link>
+        </div>
 
-        {user?.role === 'OWNER' && (
-          <>
-            <Link
-              href="/compras"
-              className="p-2 rounded-lg hover:bg-gray-700 transition"
-              title="Lista de compras"
-            >
-              <span className="text-xl">🛒</span>
-            </Link>
-            <Link
-              href="/consumo"
-              className="p-2 rounded-lg hover:bg-gray-700 transition"
-              title="Consumo diario"
-            >
-              <span className="text-xl">📊</span>
-            </Link>
-            <Link
-              href="/admin"
-              className="p-2 rounded-lg hover:bg-gray-700 transition"
-              title="Administración"
-            >
-              <span className="text-xl">⚙️</span>
-            </Link>
-          </>
-        )}
-
-        <div className="flex items-center gap-2">
-          <span className="text-sm text-gray-300 hidden sm:block">{user?.name}</span>
+        <div className="flex items-center gap-2 ml-auto shrink-0 border-l border-gray-700 pl-2 sm:pl-4">
+          <span className="text-sm text-gray-300 hidden sm:block max-w-28 truncate">{user?.name}</span>
           <form action={logoutAction}>
             <button
               type="submit"
-              className="text-sm bg-gray-700 hover:bg-gray-600 px-3 py-1.5 rounded-lg transition"
+              className="text-xs sm:text-sm bg-gray-700 hover:bg-gray-600 px-3 py-1.5 rounded-lg transition"
             >
               Salir
             </button>

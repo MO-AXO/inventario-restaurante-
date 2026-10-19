@@ -5,8 +5,8 @@ import './globals.css'
 const geist = Geist({ subsets: ['latin'] })
 
 export const metadata: Metadata = {
-  title: 'Inventario Restaurante',
-  description: 'Sistema de control de inventario',
+  title: 'Pig Brothers | Inventario',
+  description: 'Sistema de control de inventario de Pig Brothers',
 }
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {

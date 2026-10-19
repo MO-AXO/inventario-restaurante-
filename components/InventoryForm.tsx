@@ -3,11 +3,12 @@
 import { useActionState, useState } from 'react'
 import { Module } from '@prisma/client'
 import Link from 'next/link'
-import { calcStatus } from '@/lib/utils'
+import { BODEGA_MODULES, calcStatus } from '@/lib/utils'
 
 type Product = {
   id: string
   name: string
+  sharedId: string | null
   category: string
   unit: string
   minStock: number
@@ -24,6 +25,7 @@ type ExistingRecord = {
   units: number | null
   weightLb: number | null
   initialStock: number | null
+  midStock: number | null
   finalStock: number | null
   consumption: number | null
   status: string
@@ -50,12 +52,20 @@ function effectiveStock(
 ): number | null {
   if (!existing) return null
   switch (formType) {
-    case 'carnes_servicio':
+    case 'carnes_servicio': {
+      const baseStock = existing.finalWeight ?? existing.waste1 ?? existing.initialWeight
+      if (baseStock === null) return null
+      return baseStock + (existing.finalWeight === null ? (existing.restock ?? 0) : 0)
+    }
     case 'weight':
       return existing.finalWeight
     case 'smoked':
       return existing.weightLb
-    case 'beverage_service':
+    case 'beverage_service': {
+      const baseStock = existing.finalStock ?? existing.midStock ?? existing.initialStock
+      if (baseStock === null) return null
+      return baseStock + (existing.finalStock === null ? (existing.restock ?? 0) : 0)
+    }
     case 'bodega_stock':
       return existing.finalStock
     default: // simple, salsas_restaurante
@@ -77,6 +87,13 @@ function statusDot(s: string | undefined) {
   return <span className="w-3 h-3 rounded-full bg-gray-300 inline-block" />
 }
 
+function stockBadgeClass(s: string | undefined) {
+  if (s === 'CRITICO') return 'bg-red-100 text-red-700 border-red-200'
+  if (s === 'BAJO') return 'bg-yellow-100 text-yellow-700 border-yellow-200'
+  if (s === 'OK') return 'bg-green-100 text-green-700 border-green-200'
+  return 'bg-gray-100 text-gray-500 border-gray-200'
+}
+
 export default function InventoryForm({ product, today, formType, existing, isExistingToday, action, dayClosed }: Props) {
   const [open, setOpen] = useState(!existing)
   const [state, formAction, pending] = useActionState(action, undefined)
@@ -86,9 +103,19 @@ export default function InventoryForm({ product, today, formType, existing, isEx
   const [restockStock, setRestockStock] = useState<number>(existing?.restock ?? 0)
   const computedFinal = initStock + restockStock
 
-  // Compute status live from stock + minStock so color always reflects new thresholds
-  const stock = effectiveStock(formType, existing)
+  // During initial setup, a generated zero final value should not override the initial stock.
+  const initialOnly = !!existing && (
+    (formType === 'carnes_servicio' && (existing.initialWeight ?? 0) > 0 && (existing.waste1 === null || existing.waste1 === 0) && existing.finalWeight === 0) ||
+    (formType === 'beverage_service' && (existing.initialStock ?? 0) > 0 && existing.midStock === null && existing.finalStock === 0)
+  )
+  // Compute status live from stock + minStock so the initial inventory is evaluated immediately.
+  const stock = initialOnly
+    ? formType === 'carnes_servicio'
+      ? (existing?.initialWeight ?? 0) + (existing?.restock ?? 0)
+      : (existing?.initialStock ?? 0) + (existing?.restock ?? 0)
+    : effectiveStock(formType, existing)
   const liveStatus = existing ? calcStatus(stock, product.minStock) : undefined
+  const isBodegaModule = BODEGA_MODULES.includes(product.module)
 
   const inputClass = 'w-full border border-gray-300 rounded-xl px-3 py-2.5 text-base focus:outline-none focus:ring-2 focus:ring-orange-400 bg-white'
   const labelClass = 'block text-xs font-semibold text-gray-600 mb-1'
@@ -105,7 +132,10 @@ export default function InventoryForm({ product, today, formType, existing, isEx
           {statusDot(liveStatus)}
           <div>
             <span className="font-semibold">{product.name}</span>
-            <span className="text-xs text-gray-500 ml-2">{product.category}</span>
+            {product.sharedId && (
+              <span className="text-[10px] text-gray-400 ml-2">ID: {product.sharedId}</span>
+            )}
+
           </div>
         </button>
         <div className="flex items-center gap-3">
@@ -115,13 +145,13 @@ export default function InventoryForm({ product, today, formType, existing, isEx
                 {formType === 'smoked'
                   ? `${existing.units ?? '—'} u / ${existing.weightLb ?? '—'} LB`
                   : formType === 'beverage_service'
-                  ? `Final: ${existing.finalStock ?? '—'} ${product.unit}`
+                  ? `Disponible: ${stock ?? '—'} ${product.unit}`
                   : formType === 'weight'
                   ? `${existing.units ?? '—'} u / ${existing.finalWeight ?? '—'} ${product.unit}`
                   : formType === 'bodega_stock'
                   ? `Total: ${existing.finalStock ?? '—'} ${product.unit}${existing.initialStock !== null ? ` (${existing.initialStock ?? 0}+${existing.restock ?? 0})` : ''}`
                   : formType === 'carnes_servicio'
-                  ? `Final: ${existing.finalWeight ?? '—'} ${product.unit}`
+                  ? `Disponible: ${stock ?? '—'} ${product.unit}`
                   : formType === 'salsas_restaurante'
                   ? `${existing.currentStock ?? '—'} ${product.unit}${existing.restock ? ` (+${existing.restock} recarga)` : ''}`
                   : `${existing.currentStock ?? '—'} ${product.unit}`}
@@ -139,6 +169,15 @@ export default function InventoryForm({ product, today, formType, existing, isEx
               Cerrado
             </span>
           )}
+          <span className={`text-[11px] font-semibold px-2 py-1 rounded-full border whitespace-nowrap ${stockBadgeClass(liveStatus)}`}>
+            {stock === null
+              ? 'Sin registrar'
+              : formType === 'carnes_servicio'
+              ? `Disponible: ${stock ?? '—'} ${product.unit}`
+              : formType === 'beverage_service'
+              ? `Disponible: ${stock ?? '—'} ${product.unit}`
+              : `${Number.isInteger(stock) ? stock : stock.toFixed(2)} ${product.unit}`}
+          </span>
           <Link
             href={`/historial/${product.id}`}
             className="text-xs text-orange-500 underline shrink-0"
@@ -190,7 +229,7 @@ export default function InventoryForm({ product, today, formType, existing, isEx
                   <div>
                     <label className={labelClass}>Peso Final Medio Día ({product.unit})</label>
                     <input type="number" name="midWeight" step="0.01" min="0" inputMode="decimal"
-                      defaultValue={existing?.waste1 ?? ''} className={inputClass} />
+                      defaultValue={initialOnly ? '' : existing?.waste1 ?? ''} className={inputClass} />
                   </div>
                   <div>
                     <label className={labelClass}>Peso Recarga ({product.unit}) — descuenta de Carnes Ahumadas</label>
@@ -200,40 +239,9 @@ export default function InventoryForm({ product, today, formType, existing, isEx
                   <div>
                     <label className={labelClass}>Peso Final del Día ({product.unit})</label>
                     <input type="number" name="finalWeight" step="0.01" min="0" inputMode="decimal"
-                      defaultValue={existing?.finalWeight ?? ''} className={inputClass} />
+                      defaultValue={initialOnly ? '' : existing?.finalWeight ?? ''} className={inputClass} />
                   </div>
-                  {existing && existing.initialWeight !== null && (
-                    <div className="col-span-2 space-y-1.5">
-                      {existing.waste1 !== null && (
-                        <div className="bg-gray-100 rounded-xl px-3 py-2 flex justify-between items-center">
-                          <span className="text-xs text-gray-600">Consumo medio día:</span>
-                          <span className="font-bold text-sm">
-                            {((existing.initialWeight ?? 0) - (existing.waste1 ?? 0)).toFixed(2)} {product.unit}
-                          </span>
-                        </div>
-                      )}
-                      {existing.waste1 !== null && existing.finalWeight !== null && (
-                        <div className="bg-gray-100 rounded-xl px-3 py-2 flex justify-between items-center">
-                          <span className="text-xs text-gray-600">Consumo noche:</span>
-                          <span className="font-bold text-sm">
-                            {((existing.waste1 ?? 0) + (existing.restock ?? 0) - (existing.finalWeight ?? 0)).toFixed(2)} {product.unit}
-                          </span>
-                        </div>
-                      )}
-                      {existing.finalWeight !== null && (
-                        <div className="bg-orange-50 border border-orange-200 rounded-xl px-3 py-2 flex justify-between items-center">
-                          <span className="text-xs font-semibold text-orange-700">Consumo total del día:</span>
-                          <span className="font-bold text-orange-700">
-                            {(
-                              (existing.initialWeight ?? 0) +
-                              (existing.restock ?? 0) -
-                              (existing.finalWeight ?? 0)
-                            ).toFixed(2)} {product.unit}
-                          </span>
-                        </div>
-                      )}
-                    </div>
-                  )}
+
                 </div>
               )}
 
@@ -302,6 +310,11 @@ export default function InventoryForm({ product, today, formType, existing, isEx
                       defaultValue={existing?.initialStock ?? ''} className={inputClass} />
                   </div>
                   <div>
+                    <label className={labelClass}>Bebidas al medio día ({product.unit})</label>
+                    <input type="number" name="midStock" step="0.01" min="0" inputMode="decimal"
+                      defaultValue={existing?.midStock ?? ''} placeholder="Cantidad restante" className={inputClass} />
+                  </div>
+                  <div>
                     <label className={labelClass}>Recarga ({product.unit})</label>
                     <input type="number" name="restock" step="0.01" min="0" inputMode="decimal"
                       defaultValue={existing?.restock ?? ''} placeholder="0" className={inputClass} />
@@ -309,9 +322,9 @@ export default function InventoryForm({ product, today, formType, existing, isEx
                   <div>
                     <label className={labelClass}>Inv. final ({product.unit})</label>
                     <input type="number" name="finalStock" step="0.01" min="0" inputMode="decimal"
-                      defaultValue={existing?.finalStock ?? ''} className={inputClass} />
+                      defaultValue={initialOnly ? '' : existing?.finalStock ?? ''} className={inputClass} />
                   </div>
-                  {existing?.consumption !== null && existing?.consumption !== undefined && (
+                  {!initialOnly && existing?.finalStock !== null && existing?.consumption !== null && existing?.consumption !== undefined && (
                     <div className="bg-gray-100 rounded-xl px-3 py-2 flex flex-col justify-center">
                       <span className="text-xs text-gray-600">Consumo</span>
                       <span className="font-bold">{existing.consumption.toFixed(1)} {product.unit}</span>
@@ -394,16 +407,18 @@ export default function InventoryForm({ product, today, formType, existing, isEx
               )}
             </div>
 
-            <div>
-              <label className={labelClass}>Notas (opcional)</label>
-              <input
-                type="text"
-                name="notes"
-                defaultValue={existing?.notes ?? ''}
-                placeholder="Observaciones..."
-                className={inputClass}
-              />
-            </div>
+            {!isBodegaModule && (
+              <div>
+                <label className={labelClass}>Notas (opcional)</label>
+                <input
+                  type="text"
+                  name="notes"
+                  defaultValue={existing?.notes ?? ''}
+                  placeholder="Observaciones..."
+                  className={inputClass}
+                />
+              </div>
+            )}
 
             <div className="flex items-center gap-2 bg-gray-50 border border-gray-200 rounded-xl px-3 py-2">
               <span className="text-xs text-gray-500 shrink-0">Stock mínimo:</span>

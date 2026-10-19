@@ -31,9 +31,13 @@ enum Module {
   BODEGA
   DESECHABLES
   GUARNICIONES
+  FRITURAS_RESTAURANTE
   VERDURAS_RESTAURANTE
   HARINAS_ACEITE_RESTAURANTE
   HARINAS_ACEITE_BODEGA
+  PAN
+  PAN_RESTAURANTE
+  FRITURAS
   LACTEOS_RESTAURANTE
   LACTEOS_BODEGA
   CONDIMENTOS_RESTAURANTE
@@ -68,12 +72,30 @@ model Product {
   name      String
   category  String
   module    Module
+  sharedId  String?
   unit      String        @default("unidad")
   minStock  Float         @default(0)
   maxStock  Float?
   active    Boolean       @default(true)
   createdAt DateTime      @default(now())
   records   DailyRecord[]
+  purchases Purchase[]
+}
+
+model Purchase {
+  id        String   @id @default(cuid())
+  productId String
+  product   Product  @relation(fields: [productId], references: [id])
+  quantity  Float
+  unit      String
+  unitCost  Float?
+  supplier  String?
+  notes     String?
+  userId    String?
+  kind      String   @default("COMPRA")
+  createdAt DateTime @default(now())
+
+  @@index([productId, createdAt])
 }
 
 model DailyRecord {
@@ -98,6 +120,7 @@ model DailyRecord {
 
   // Bebidas servicio
   initialStock  Float?
+  midStock      Float?
   finalStock    Float?
   consumption   Float?
 

@@ -15,8 +15,8 @@ function toModule(str: string): Module | null {
     'CARNES_PREPARADAS', 'CARNES_AHUMADAS', 'CARNE_CRUDA', 'VERDURAS',
     'BEBIDAS_BODEGA', 'BEBIDAS_SERVICIO', 'SALSAS', 'COCINA',
     'SERVICIO', 'BODEGA', 'DESECHABLES',
-    'GUARNICIONES', 'VERDURAS_RESTAURANTE', 'HARINAS_ACEITE_RESTAURANTE',
-    'HARINAS_ACEITE_BODEGA', 'LACTEOS_RESTAURANTE', 'LACTEOS_BODEGA',
+    'GUARNICIONES', 'FRITURAS_RESTAURANTE', 'VERDURAS_RESTAURANTE', 'HARINAS_ACEITE_RESTAURANTE',
+    'HARINAS_ACEITE_BODEGA', 'PAN', 'PAN_RESTAURANTE', 'FRITURAS', 'LACTEOS_RESTAURANTE', 'LACTEOS_BODEGA',
     'CONDIMENTOS_RESTAURANTE', 'DESECHABLES_BOLSAS_RESTAURANTE', 'DESECHABLES_BODEGA',
     'SALSAS_ADEREZOS_RESTAURANTE', 'LIMPIEZA_RESTAURANTE',
     'SALSAS_ADEREZOS_BODEGA', 'CONDIMENTOS_BODEGA', 'MATERIA_PRIMA_SALSA', 'LIMPIEZA_BODEGA',
@@ -50,7 +50,7 @@ export default async function InventarioModulePage({ params }: Props) {
         take: 1,
       },
     },
-      orderBy: [{ category: 'asc' }, { name: 'asc' }],
+      orderBy: { name: 'asc' },
     }),
     prisma.dayClose.findUnique({ where: { date: new Date(today) } }),
   ])
@@ -79,6 +79,7 @@ export default async function InventarioModulePage({ params }: Props) {
             products={products.map((p) => ({
               id: p.id,
               name: p.name,
+              sharedId: p.sharedId,
               category: p.category,
               unit: p.unit,
               minStock: p.minStock,

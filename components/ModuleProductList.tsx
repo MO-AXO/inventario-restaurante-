@@ -15,6 +15,7 @@ type ExistingRecord = {
   units: number | null
   weightLb: number | null
   initialStock: number | null
+  midStock: number | null
   finalStock: number | null
   consumption: number | null
   status: string
@@ -26,6 +27,7 @@ type ExistingRecord = {
 type Product = {
   id: string
   name: string
+  sharedId: string | null
   category: string
   unit: string
   minStock: number
@@ -53,21 +55,10 @@ export default function ModuleProductList({ products, today, formType, dayClosed
     return products.filter(
       (p) =>
         p.name.toLowerCase().includes(q) ||
-        p.category.toLowerCase().includes(q)
+        p.sharedId?.toLowerCase().includes(q)
     )
   }, [products, query])
 
-  // Group by category
-  const categories = useMemo(() => {
-    const map: Record<string, Product[]> = {}
-    for (const p of filtered) {
-      if (!map[p.category]) map[p.category] = []
-      map[p.category].push(p)
-    }
-    return map
-  }, [filtered])
-
-  const multipleCategories = Object.keys(categories).length > 1
 
   return (
     <div className="space-y-3">
@@ -85,7 +76,7 @@ export default function ModuleProductList({ products, today, formType, dayClosed
             type="text"
             value={query}
             onChange={(e) => setQuery(e.target.value)}
-            placeholder="Buscar producto o categoría..."
+            placeholder="Buscar producto o ID..."
             className="w-full border border-gray-300 rounded-2xl pl-9 pr-9 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400 bg-white shadow-sm"
           />
           {query && (
@@ -107,22 +98,15 @@ export default function ModuleProductList({ products, today, formType, dayClosed
         </div>
       )}
 
-      {/* Products grouped by category */}
-      {Object.entries(categories).map(([cat, catProducts]) => (
-        <div key={cat}>
-          {multipleCategories && (
-            <div className="px-1 pb-1 pt-2">
-              <span className="text-xs font-bold text-gray-400 uppercase tracking-wide">{cat}</span>
-              <span className="text-xs text-gray-300 ml-2">({catProducts.length})</span>
-            </div>
-          )}
-          <div className="space-y-3">
-            {catProducts.map((product) => (
+      {/* Products in one continuous module list */}
+      <div className="space-y-3">
+        {filtered.map((product) => (
               <InventoryForm
                 key={product.id}
                 product={{
                   id: product.id,
                   name: product.name,
+                  sharedId: product.sharedId,
                   category: product.category,
                   unit: product.unit,
                   minStock: product.minStock,
@@ -135,10 +119,8 @@ export default function ModuleProductList({ products, today, formType, dayClosed
                 action={saveInventoryRecord}
                 dayClosed={dayClosed}
               />
-            ))}
-          </div>
-        </div>
-      ))}
+        ))}
+      </div>
     </div>
   )
 }
