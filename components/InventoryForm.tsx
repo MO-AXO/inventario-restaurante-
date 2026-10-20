@@ -323,12 +323,6 @@ export default function InventoryForm({ product, today, formType, existing, isEx
                       defaultValue={initialOnly ? '' : existing?.finalStock ?? ''} className={inputClass} />
                   </div>
                   <TransferNote morning={morningTransfer} noon={noonTransfer} unit={product.unit} />
-                  {!initialOnly && existing?.finalStock !== null && existing?.consumption !== null && existing?.consumption !== undefined && (
-                    <div className="bg-gray-100 rounded-xl px-3 py-2 flex flex-col justify-center">
-                      <span className="text-xs text-gray-600">Consumo</span>
-                      <span className="font-bold">{existing.consumption.toFixed(1)} {product.unit}</span>
-                    </div>
-                  )}
                 </div>
               )}
 
