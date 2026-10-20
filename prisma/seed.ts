@@ -1123,9 +1123,11 @@ async function main() {
     { restaurantModule: 'VERDURAS_RESTAURANTE' as Module, warehouseModule: 'VERDURAS' as Module, name: 'Cebolla Blanca', sharedId: 'verdura-cebolla-blanca' },
   ]
   for (const link of restaurantToWarehouse) {
-    const restaurant = await prisma.product.findFirst({ where: { module: link.restaurantModule, name: link.name } })
+    // Si hay duplicados viejos, se usa el que tiene más historial y nunca se reactiva otro.
+    const byMostHistory = [{ active: 'desc' as const }, { records: { _count: 'desc' as const } }, { createdAt: 'asc' as const }]
+    const restaurant = await prisma.product.findFirst({ where: { module: link.restaurantModule, name: link.name }, orderBy: byMostHistory })
     if (!restaurant) continue
-    const warehouse = await prisma.product.findFirst({ where: { module: link.warehouseModule, name: link.name } })
+    const warehouse = await prisma.product.findFirst({ where: { module: link.warehouseModule, name: link.name }, orderBy: byMostHistory })
     if (warehouse) {
       await prisma.product.update({ where: { id: warehouse.id }, data: { sharedId: link.sharedId, active: true } })
     } else {
