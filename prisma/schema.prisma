@@ -83,6 +83,21 @@ model Product {
   purchases Purchase[]
 }
 
+// Lo que el equipo del restaurante escribe que le hace falta; el gerente o el dueño lo marca como llevado.
+// Es texto libre: no depende del catálogo de productos.
+model Pedido {
+  id              String    @id @default(cuid())
+  text            String
+  status          String    @default("PENDIENTE") // PENDIENTE | LLEVADO | CANCELADO
+  requestedById   String?
+  requestedByName String
+  createdAt       DateTime  @default(now())
+  resolvedAt      DateTime?
+  resolvedByName  String?
+
+  @@index([status, createdAt])
+}
+
 model Purchase {
   id        String   @id @default(cuid())
   productId String

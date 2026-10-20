@@ -1,9 +1,13 @@
 import Link from 'next/link'
 import { logoutAction } from '@/app/actions/auth'
 import { getCurrentUser } from '@/lib/auth'
+import { prisma } from '@/lib/db'
 
 export default async function Navbar() {
   const user = await getCurrentUser()
+  // Pedidos por llevar: lo ven todos, pero el aviso rojo es para quien tiene que atenderlos.
+  const canManage = user?.role === 'OWNER' || user?.role === 'MANAGER'
+  const pedidosPendientes = user ? await prisma.pedido.count({ where: { status: 'PENDIENTE' } }) : 0
 
   return (
     <nav className="bg-[#211915] text-white px-3 sm:px-5 py-2.5 flex items-center justify-between sticky top-0 z-50 shadow-lg border-b border-orange-500/30">
@@ -24,6 +28,20 @@ export default async function Navbar() {
           >
             <span>📋</span>
             <span className="hidden md:inline">Resumen</span>
+          </Link>
+
+          <Link
+            href="/pedidos"
+            className="relative flex items-center gap-2 px-2.5 py-2 rounded-lg text-sm font-medium text-gray-200 hover:bg-gray-700 hover:text-white transition whitespace-nowrap"
+            title="Pedidos"
+          >
+            <span>📝</span>
+            <span className="hidden md:inline">Pedidos</span>
+            {pedidosPendientes > 0 && (
+              <span className={`absolute top-0 right-0 text-white text-[10px] font-bold min-w-4 h-4 px-1 rounded-full flex items-center justify-center ${canManage ? 'bg-red-500' : 'bg-gray-500'}`}>
+                {pedidosPendientes > 9 ? '9+' : pedidosPendientes}
+              </span>
+            )}
           </Link>
 
           {(user?.role === 'OWNER' || user?.role === 'MANAGER') && (
