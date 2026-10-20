@@ -19,6 +19,9 @@ import {
   readMidCount,
 } from '@/lib/utils'
 
+// A partir de esta hora (Costa Rica) se sugiere el turno de mediodía en lugar del de mañana.
+const SHIFT_CUTOFF_HOUR = 11
+
 export default async function RecargaRestorantePage() {
   const session = await getSession()
   if (!session || (session.role !== 'OWNER' && session.role !== 'MANAGER')) redirect('/dashboard')
@@ -45,6 +48,15 @@ export default async function RecargaRestorantePage() {
 
   const warehouseByKey = new Map(warehouseProducts.map((w) => [`${w.module}:${w.sharedId}`, w]))
 
+  // Lo que ya se llevó hoy de cada producto, por turno, para avisar si se repite.
+  const dayStartForRows = new Date(`${today}T00:00:00-06:00`)
+  const movedToday: Record<string, { MANANA: number; MEDIODIA: number }> = {}
+  for (const t of transfers) {
+    if (t.kind !== 'TRASLADO' || t.createdAt < dayStartForRows) continue
+    const entry = (movedToday[t.productId] ??= { MANANA: 0, MEDIODIA: 0 })
+    if (t.shift === 'MANANA' || t.shift === 'MEDIODIA') entry[t.shift] += t.quantity
+  }
+
   const rows = products.map((p) => {
     const warehouseModule = WAREHOUSE_FOR_RESTAURANT[p.module]
     const warehouse = warehouseModule && p.sharedId ? warehouseByKey.get(`${warehouseModule}:${p.sharedId}`) : undefined
@@ -63,6 +75,8 @@ export default async function RecargaRestorantePage() {
         : null,
       linked: !!warehouse && warehouse.unit.trim().toLowerCase() === p.unit.trim().toLowerCase(),
       warehouseAvailable: warehouse ? warehouseStock(warehouse.module, warehouse.records[0] ?? null) : null,
+      movedMorning: movedToday[p.id]?.MANANA ?? 0,
+      movedNoon: movedToday[p.id]?.MEDIODIA ?? 0,
     }
   })
 
@@ -85,6 +99,9 @@ export default async function RecargaRestorantePage() {
       }
     })
 
+  // Costa Rica no tiene horario de verano: UTC-6 todo el año.
+  const dayStart = new Date(`${today}T00:00:00-06:00`)
+
   const batchMap = new Map<string, { batchId: string; shift: string; createdAt: string; items: { name: string; unit: string; quantity: number; kind: string }[] }>()
   for (const t of transfers) {
     if (!t.batchId) continue
@@ -92,7 +109,33 @@ export default async function RecargaRestorantePage() {
     batch.items.push({ name: t.product.name, unit: t.unit, quantity: t.quantity, kind: t.kind })
     batchMap.set(t.batchId, batch)
   }
-  const batches = Array.from(batchMap.values()).slice(0, 10)
+  const allBatches = Array.from(batchMap.values())
+
+  // Turnos que ya tienen un traslado hoy, con la hora y cuántos productos llevaron.
+  const doneToday: Record<string, { count: number; at: string }> = {}
+  for (const b of allBatches) {
+    if (new Date(b.createdAt) < dayStart) continue
+    const kinds = new Set(b.items.map((i) => i.kind))
+    if (b.shift === 'CIERRE' && !kinds.has('DEVOLUCION') && !kinds.has('MERMA')) continue
+    if (b.shift !== 'CIERRE' && !kinds.has('TRASLADO')) continue
+    const current = doneToday[b.shift]
+    doneToday[b.shift] = {
+      count: (current?.count ?? 0) + b.items.length,
+      at: !current || new Date(b.createdAt) > new Date(current.at) ? b.createdAt : current.at,
+    }
+  }
+
+  // Solo el lote más reciente de hoy se puede deshacer (si es un traslado).
+  const newestToday = allBatches.find((b) => new Date(b.createdAt) >= dayStart)
+  const undoableBatchId = newestToday && newestToday.shift !== 'CIERRE' && newestToday.items.some((i) => i.kind === 'TRASLADO')
+    ? newestToday.batchId
+    : null
+
+  // Turno sugerido por la hora de Costa Rica; es solo una sugerencia y no bloquea nada.
+  const hourCR = Number(new Date().toLocaleString('en-US', { timeZone: 'America/Costa_Rica', hour: 'numeric', hour12: false }))
+  const suggestedShift = hourCR >= SHIFT_CUTOFF_HOUR ? 'MEDIODIA' : 'MANANA'
+
+  const batches = allBatches.slice(0, 10)
 
   const dateLabel = new Date(today + 'T12:00:00').toLocaleDateString('es-CR', {
     weekday: 'long', day: 'numeric', month: 'long', year: 'numeric',
@@ -112,7 +155,15 @@ export default async function RecargaRestorantePage() {
             El día está cerrado. Para registrar traslados, el dueño debe reabrirlo desde el Dashboard.
           </div>
         ) : (
-          <TransferPanel products={rows} batches={batches} closingRows={closingRows} />
+          <TransferPanel
+                      products={rows}
+                      batches={batches}
+                      closingRows={closingRows}
+                      doneToday={doneToday}
+                      undoableBatchId={undoableBatchId}
+                      suggestedShift={suggestedShift}
+                      cutoffHour={SHIFT_CUTOFF_HOUR}
+                    />
         )}
       </main>
     </div>

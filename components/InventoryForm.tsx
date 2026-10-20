@@ -249,7 +249,7 @@ export default function InventoryForm({ product, today, formType, existing, isEx
               {formType === 'carnes_servicio' && (
                 <div className="grid grid-cols-2 gap-3">
                   <div>
-                    <label className={labelClass}>Peso Inicial ({product.unit})</label>
+                    <label className={labelClass}>Peso Inicial ({product.unit}) <span className="font-normal text-gray-400">— se llena con el traslado de la mañana</span></label>
                     <input type="number" name="initialWeight" step="0.01" min="0" inputMode="decimal"
                       defaultValue={existing?.initialWeight ?? ''} className={inputClass} />
                   </div>

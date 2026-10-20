@@ -21,6 +21,7 @@ import {
   carriedStock,
   warehouseStock,
   readMidCount,
+  round3,
 } from '@/lib/utils'
 
 export type TransferShift = 'MANANA' | 'MEDIODIA'
@@ -133,7 +134,7 @@ export async function registerTransfer(shift: TransferShift, lines: TransferLine
           if (isCarnes || isBeverage || isStandard) {
             const hadRecordToday = !!today
             // Sin registro de hoy, el inicial es lo que quedó ayer; si hoy hay uno en formato viejo, su stock es el inicial.
-            const initial = hadRecordToday
+            let initial = hadRecordToday
               ? (isCarnes ? today!.initialWeight : today!.initialStock ?? today!.currentStock) ?? 0
               : isCarnes
               ? availableStock(mod, latest) ?? 0
@@ -143,8 +144,11 @@ export async function registerTransfer(shift: TransferShift, lines: TransferLine
             let morning = today?.restockMorning ?? 0
             let noon = today?.restock ?? 0
 
-            if (shift === 'MANANA') morning += line.quantity
-            else {
+            if (shift === 'MANANA') {
+              // En Carnes para Servicio lo que se lleva por la mañana ES el peso inicial del día.
+              if (isCarnes) initial += line.quantity
+              else morning += line.quantity
+            } else {
               noon += line.quantity
               if (wantsMid && line.midCount !== null) mid = line.midCount
             }
@@ -288,6 +292,156 @@ export async function registerTransfer(shift: TransferShift, lines: TransferLine
   } catch (error) {
     console.error('registerTransfer error:', error)
     return { ok: false, error: 'No se pudo registrar el traslado. No se aplicó ningún cambio.' }
+  }
+}
+
+class UndoError extends Error {}
+
+export type UndoResult =
+  | { ok: true; restored: { name: string; unit: string; quantity: number; returned: number }[]; warnings: string[] }
+  | { ok: false; error: string }
+
+// Deshace un traslado completo de hoy: resta lo llevado del restaurante, devuelve a Bodega lo que se descontó
+// y marca el comprobante como anulado (no se borra, queda para auditoría). Todo o nada.
+export async function undoTransfer(batchId: string): Promise<UndoResult> {
+  try {
+    const session = await getSession()
+    if (!session || (session.role !== 'OWNER' && session.role !== 'MANAGER')) {
+      return { ok: false, error: 'Solo el dueño o el gerente pueden deshacer traslados.' }
+    }
+
+    const today = todayDate()
+    const date = new Date(today)
+    const closed = await prisma.dayClose.findUnique({ where: { date } })
+    if (closed) return { ok: false, error: 'El día ya está cerrado. Reábrelo para deshacer traslados.' }
+
+    const rows = await prisma.purchase.findMany({ where: { batchId, kind: 'TRASLADO' }, include: { product: true } })
+    if (rows.length === 0) return { ok: false, error: 'Este traslado ya fue deshecho o no existe.' }
+
+    // Costa Rica no tiene horario de verano: UTC-6 todo el año.
+    const dayStart = new Date(`${today}T00:00:00-06:00`)
+    if (rows.some((r) => r.createdAt < dayStart)) return { ok: false, error: 'Solo se puede deshacer un traslado de hoy.' }
+
+    // Solo el más reciente: si hay otro traslado o un cierre después, revertir este dejaría las cuentas torcidas.
+    const newest = rows.reduce((m, r) => (r.createdAt > m ? r.createdAt : m), rows[0].createdAt)
+    const later = await prisma.purchase.findFirst({
+      where: { kind: { in: ['TRASLADO', 'DEVOLUCION', 'MERMA'] }, batchId: { not: batchId }, createdAt: { gt: newest } },
+    })
+    if (later) return { ok: false, error: 'Hay un traslado o un cierre posterior. Deshaz primero el más reciente.' }
+
+    const restored: Extract<UndoResult, { ok: true }>['restored'] = []
+    const warnings: string[] = []
+
+    await prisma.$transaction(
+      async (tx) => {
+        for (const row of rows) {
+          const product = row.product
+          const mod = product.module as Module
+          const quantity = row.quantity
+          if (row.shift !== 'MANANA' && row.shift !== 'MEDIODIA') {
+            throw new UndoError(`${product.name}: el turno del traslado no es válido.`)
+          }
+
+          const rec = await tx.dailyRecord.findUnique({ where: { productId_date: { productId: product.id, date } } })
+          if (!rec) throw new UndoError(`${product.name}: no hay registro de hoy para revertir.`)
+
+          let initialWeight = rec.initialWeight
+          let restockMorning = rec.restockMorning
+          let restock = rec.restock
+          const data: Prisma.DailyRecordUncheckedUpdateInput = {}
+
+          // Se revierte exactamente el campo que el traslado tocó.
+          if (row.shift === 'MANANA') {
+            if (CARNES_SERVICIO_MODULES.includes(mod)) {
+              const next = round3((initialWeight ?? 0) - quantity)
+              if (next < 0) throw new UndoError(`${product.name}: el peso inicial de hoy (${fmt(initialWeight ?? 0)}) es menor que lo trasladado (${fmt(quantity)}). Revísalo antes de deshacer.`)
+              initialWeight = next
+              data.initialWeight = next
+            } else {
+              const next = round3((restockMorning ?? 0) - quantity)
+              if (next < 0) throw new UndoError(`${product.name}: la recarga de la mañana (${fmt(restockMorning ?? 0)}) es menor que lo trasladado (${fmt(quantity)}).`)
+              restockMorning = next
+              data.restockMorning = next
+            }
+          } else {
+            const next = round3((restock ?? 0) - quantity)
+            if (next < 0) throw new UndoError(`${product.name}: la recarga de mediodía (${fmt(restock ?? 0)}) es menor que lo trasladado (${fmt(quantity)}).`)
+            restock = next
+            data.restock = next
+          }
+
+          const currentStock = availableStock(mod, { ...rec, initialWeight, restockMorning, restock }) ?? rec.currentStock ?? 0
+          data.currentStock = currentStock
+          data.status = calcStatus(currentStock, product.minStock)
+          if (!CARNES_SERVICIO_MODULES.includes(mod) && rec.finalStock !== null) {
+            data.consumption = round3((rec.initialStock ?? 0) + (restockMorning ?? 0) + (restock ?? 0) - rec.finalStock)
+          }
+          await tx.dailyRecord.update({ where: { id: rec.id }, data })
+
+          if (row.shift === 'MEDIODIA' && MIDDAY_COUNT_MODULES.includes(mod)) {
+            warnings.push(`${product.name}: el conteo de mediodía se conserva; solo se deshizo lo llevado.`)
+          }
+
+          // Devolver a Bodega exactamente lo que se le descontó.
+          const deducted = row.warehouseDeducted ?? 0
+          if (deducted > 0) {
+            const warehouseModule = WAREHOUSE_FOR_RESTAURANT[mod]
+            const warehouse = product.sharedId && warehouseModule
+              ? await tx.product.findFirst({ where: { module: warehouseModule, sharedId: product.sharedId, active: true } })
+              : null
+            if (!warehouse) {
+              warnings.push(`${product.name}: no se encontró el producto en Bodega; no se le devolvió lo descontado.`)
+            } else {
+              const wToday = await tx.dailyRecord.findUnique({ where: { productId_date: { productId: warehouse.id, date } } })
+              const wLatest = wToday ?? await tx.dailyRecord.findFirst({ where: { productId: warehouse.id }, orderBy: { date: 'desc' } })
+              const previous = warehouseStock(warehouse.module, wLatest)
+              const next = round3(previous + deducted)
+              const wData: Prisma.DailyRecordUncheckedCreateInput = {
+                productId: warehouse.id,
+                date,
+                userId: session.userId,
+                status: calcStatus(next, warehouse.minStock),
+                currentStock: next,
+                notes: wToday?.notes ?? null,
+              }
+              if (BODEGA_STOCK_MODULES.includes(warehouse.module)) {
+                wData.initialStock = round3((wToday?.initialStock ?? previous) + deducted)
+                wData.restock = wToday?.restock ?? 0
+                wData.finalStock = next
+              } else if (SMOKED_MODULES.includes(warehouse.module)) {
+                wData.weightLb = next
+                wData.units = wLatest?.units ?? null
+              }
+              await tx.dailyRecord.upsert({
+                where: { productId_date: { productId: warehouse.id, date } },
+                update: wData,
+                create: wData,
+              })
+            }
+          }
+
+          restored.push({ name: product.name, unit: product.unit, quantity, returned: deducted })
+        }
+
+        await tx.purchase.updateMany({
+          where: { batchId, kind: 'TRASLADO' },
+          data: { kind: 'ANULADO', notes: `Deshecho por el usuario ${session.userId}` },
+        })
+      },
+      { timeout: 60000, maxWait: 10000 }
+    )
+
+    revalidatePath('/recarga-restaurante')
+    revalidatePath('/dashboard')
+    revalidatePath('/resumen')
+    revalidatePath('/medio-dia')
+    revalidatePath('/consumo')
+
+    return { ok: true, restored, warnings }
+  } catch (error) {
+    if (error instanceof UndoError) return { ok: false, error: `${error.message} No se aplicó ningún cambio.` }
+    console.error('undoTransfer error:', error)
+    return { ok: false, error: 'No se pudo deshacer el traslado. No se aplicó ningún cambio.' }
   }
 }
 
