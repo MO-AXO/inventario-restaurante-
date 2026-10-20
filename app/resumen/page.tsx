@@ -2,7 +2,7 @@ export const dynamic = 'force-dynamic'
 
 import Navbar from '@/components/Navbar'
 import { prisma } from '@/lib/db'
-import { todayDate, MODULE_LABELS, SECTION_GROUPS, MODULE_ICONS, statusColor, statusBadge, calcStatus, availableStock, CARNES_SERVICIO_MODULES, WEIGHT_MODULES, SMOKED_MODULES, BEVERAGE_SERVICE_MODULES, BODEGA_STOCK_MODULES } from '@/lib/utils'
+import { todayDate, MODULE_LABELS, SECTION_GROUPS, MODULE_ICONS, statusColor, statusBadge, calcStatus, availableStock, STANDARD_RESTAURANT_MODULES, CARNES_SERVICIO_MODULES, WEIGHT_MODULES, SMOKED_MODULES, BEVERAGE_SERVICE_MODULES, BODEGA_STOCK_MODULES } from '@/lib/utils'
 import { Module, StockStatus } from '@prisma/client'
 
 type StockRecord = {
@@ -34,7 +34,7 @@ type ProductRow = {
 
 function effectiveStock(mod: Module, record: StockRecord | undefined): number | null {
   if (!record) return null
-  if (CARNES_SERVICIO_MODULES.includes(mod) || BEVERAGE_SERVICE_MODULES.includes(mod)) return availableStock(mod, record)
+  if (CARNES_SERVICIO_MODULES.includes(mod) || BEVERAGE_SERVICE_MODULES.includes(mod) || STANDARD_RESTAURANT_MODULES.includes(mod)) return availableStock(mod, record)
   if (WEIGHT_MODULES.includes(mod)) return record.finalWeight
   if (SMOKED_MODULES.includes(mod)) return record.weightLb
   if (BEVERAGE_SERVICE_MODULES.includes(mod) || BODEGA_STOCK_MODULES.includes(mod)) return record.finalStock
@@ -58,7 +58,7 @@ function initialDisplay(mod: Module, record: StockRecord | undefined, unit: stri
   if (!record) return '—'
   if (CARNES_SERVICIO_MODULES.includes(mod) || WEIGHT_MODULES.includes(mod))
     return record.initialWeight !== null ? `${record.initialWeight.toFixed(1)} ${unit}` : '—'
-  if (BEVERAGE_SERVICE_MODULES.includes(mod) || BODEGA_STOCK_MODULES.includes(mod))
+  if (BEVERAGE_SERVICE_MODULES.includes(mod) || BODEGA_STOCK_MODULES.includes(mod) || STANDARD_RESTAURANT_MODULES.includes(mod))
     return record.initialStock !== null ? `${record.initialStock.toFixed(1)} ${unit}` : '—'
   return '—'
 }
@@ -72,7 +72,7 @@ function restockDisplay(mod: Module, record: StockRecord | undefined, unit: stri
 function stockDisplay(product: { unit: string; module: Module }, record: StockRecord | undefined): string {
   if (!record) return '—'
   const mod = product.module
-  if (CARNES_SERVICIO_MODULES.includes(mod) || BEVERAGE_SERVICE_MODULES.includes(mod)) {
+  if (CARNES_SERVICIO_MODULES.includes(mod) || BEVERAGE_SERVICE_MODULES.includes(mod) || STANDARD_RESTAURANT_MODULES.includes(mod)) {
     const available = availableStock(mod, record)
     return available !== null ? `${available.toFixed(1)} ${product.unit}` : '—'
   }

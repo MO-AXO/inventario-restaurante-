@@ -3,7 +3,7 @@
 import { useActionState, useState } from 'react'
 import { Module } from '@prisma/client'
 import Link from 'next/link'
-import { CARNES_SERVICIO_MODULES, calcStatus, availableStock } from '@/lib/utils'
+import { CARNES_SERVICIO_MODULES, MIDDAY_COUNT_MODULES, calcStatus, availableStock } from '@/lib/utils'
 
 type Product = {
   id: string
@@ -21,6 +21,8 @@ type ExistingRecord = {
   waste1: number | null
   restock: number | null
   restockMorning: number | null
+  returnedQty?: number | null
+  wasteQty?: number | null
   waste2: number | null
   finalWeight: number | null
   units: number | null
@@ -39,7 +41,7 @@ type ActionState = { success?: boolean; error?: string } | undefined
 type Props = {
   product: Product
   today: string
-  formType: 'carnes_servicio' | 'weight' | 'smoked' | 'beverage_service' | 'bodega_stock' | 'salsas_restaurante' | 'simple'
+  formType: 'carnes_servicio' | 'weight' | 'smoked' | 'beverage_service' | 'bodega_stock' | 'standard_restaurant' | 'simple'
   existing: ExistingRecord | null
   isExistingToday: boolean
   carriedFrom?: { date: string; estimated: boolean } | null
@@ -57,6 +59,7 @@ function effectiveStock(
   switch (formType) {
     case 'carnes_servicio':
     case 'beverage_service':
+    case 'standard_restaurant':
       return availableStock(module, existing)
     case 'weight':
       return existing.finalWeight
@@ -64,10 +67,11 @@ function effectiveStock(
       return existing.weightLb
     case 'bodega_stock':
       return existing.finalStock
-    default: // simple, salsas_restaurante
+    default: // simple
       return existing.currentStock
   }
 }
+
 
 function formatCarryDate(date: string) {
   return new Date(date + 'T12:00:00').toLocaleDateString('es-CR', { weekday: 'long', day: 'numeric', month: 'short' })
@@ -128,6 +132,8 @@ export default function InventoryForm({ product, today, formType, existing, isEx
   const liveStatus = existing ? calcStatus(stock, product.minStock) : undefined
   // Las observaciones solo se usan en Carnes para Servicio.
   const showNotes = CARNES_SERVICIO_MODULES.includes(product.module)
+  // El conteo de mediodía solo existe en los módulos que se cuentan a esa hora.
+  const midCount = MIDDAY_COUNT_MODULES.includes(product.module)
 
   const inputClass = 'w-full border border-gray-300 rounded-xl px-3 py-2.5 text-base focus:outline-none focus:ring-2 focus:ring-orange-400 bg-white'
   const labelClass = 'block text-xs font-semibold text-gray-600 mb-1'
@@ -164,8 +170,8 @@ export default function InventoryForm({ product, today, formType, existing, isEx
                   ? `Total: ${existing.finalStock ?? '—'} ${product.unit}${existing.initialStock !== null ? ` (${existing.initialStock ?? 0}+${existing.restock ?? 0})` : ''}`
                   : formType === 'carnes_servicio'
                   ? `Disponible: ${stock ?? '—'} ${product.unit}`
-                  : formType === 'salsas_restaurante'
-                  ? `${existing.currentStock ?? '—'} ${product.unit}${morningTransfer + noonTransfer > 0 ? ` (+${morningTransfer + noonTransfer} recarga)` : ''}`
+                  : formType === 'standard_restaurant'
+                  ? `Disponible: ${stock ?? '—'} ${product.unit}`
                   : `${existing.currentStock ?? '—'} ${product.unit}`}
               </div>
               <div className="text-xs text-gray-400">
@@ -186,7 +192,7 @@ export default function InventoryForm({ product, today, formType, existing, isEx
               ? 'Sin registrar'
               : formType === 'carnes_servicio'
               ? `Disponible: ${stock ?? '—'} ${product.unit}`
-              : formType === 'beverage_service'
+              : formType === 'beverage_service' || formType === 'standard_restaurant'
               ? `Disponible: ${stock ?? '—'} ${product.unit}`
               : `${Number.isInteger(stock) ? stock : stock.toFixed(2)} ${product.unit}`}
           </span>
@@ -228,7 +234,7 @@ export default function InventoryForm({ product, today, formType, existing, isEx
               carriedFrom ? (
                 <p className="text-xs text-blue-800 bg-blue-50 border border-blue-200 rounded-lg px-3 py-2">
                   {carriedFrom.estimated
-                    ? `El ${formatCarryDate(carriedFrom.date)} no se completó el inventario final; se usa lo que había disponible (${stock ?? 0} ${product.unit}) como inicial de hoy.`
+                    ? `El ${formatCarryDate(carriedFrom.date)} no se escribió el inventario final; se usa el último stock guardado (${stock ?? 0} ${product.unit}) como inicial de hoy.`
                     : `Inicial de hoy tomado del inventario final del ${formatCarryDate(carriedFrom.date)}: ${stock ?? 0} ${product.unit}.`}
                   {' '}Corrígelo si no coincide y guarda.
                 </p>
@@ -258,7 +264,15 @@ export default function InventoryForm({ product, today, formType, existing, isEx
                       defaultValue={initialOnly ? '' : existing?.finalWeight ?? ''} className={inputClass} />
                   </div>
                   <TransferNote morning={morningTransfer} noon={noonTransfer} unit={product.unit} />
-
+                  {((existing?.returnedQty ?? 0) > 0 || (existing?.wasteQty ?? 0) > 0) && (
+                    <div className="col-span-2 bg-rose-50 border border-rose-200 rounded-xl px-3 py-2 text-xs text-rose-800">
+                      Cierre de hoy:
+                      {(existing?.returnedQty ?? 0) > 0 && <> devuelto a Bodega <strong>{existing?.returnedQty} {product.unit}</strong></>}
+                      {(existing?.returnedQty ?? 0) > 0 && (existing?.wasteQty ?? 0) > 0 && ' ·'}
+                      {(existing?.wasteQty ?? 0) > 0 && <> merma <strong>{existing?.wasteQty} {product.unit}</strong></>}
+                      . Se registra en Recarga Restaurante → Cierre.
+                    </div>
+                  )}
                 </div>
               )}
 
@@ -275,6 +289,29 @@ export default function InventoryForm({ product, today, formType, existing, isEx
                     placeholder={`Mínimo: ${product.minStock}`}
                     className={inputClass}
                   />
+                </div>
+              )}
+
+              {formType === 'standard_restaurant' && (
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className={labelClass}>Inv. inicial ({product.unit})</label>
+                    <input type="number" name="initialStock" step="0.01" min="0" inputMode="decimal"
+                      defaultValue={existing?.initialStock ?? ''} placeholder={`Mínimo: ${product.minStock}`} className={inputClass} />
+                  </div>
+                  {midCount && (
+                    <div>
+                      <label className={labelClass}>Final mediodía ({product.unit})</label>
+                      <input type="number" name="midStock" step="0.01" min="0" inputMode="decimal"
+                        defaultValue={existing?.midStock ?? ''} placeholder="Cantidad restante" className={inputClass} />
+                    </div>
+                  )}
+                  <div>
+                    <label className={labelClass}>Inv. final ({product.unit})</label>
+                    <input type="number" name="finalStock" step="0.01" min="0" inputMode="decimal"
+                      defaultValue={existing?.finalStock ?? ''} placeholder="Al cerrar" className={inputClass} />
+                  </div>
+                  <TransferNote morning={morningTransfer} noon={noonTransfer} unit={product.unit} />
                 </div>
               )}
 
@@ -377,24 +414,7 @@ export default function InventoryForm({ product, today, formType, existing, isEx
                 </div>
               )}
 
-              {formType === 'salsas_restaurante' && (
-                <div className="space-y-3">
-                  <div>
-                    <label className={labelClass}>Stock actual ({product.unit})</label>
-                    <input
-                      type="number"
-                      name="currentStock"
-                      step="0.01"
-                      min="0"
-                      inputMode="decimal"
-                      defaultValue={existing?.currentStock ?? ''}
-                      placeholder={`Mínimo: ${product.minStock}`}
-                      className={inputClass}
-                    />
-                  </div>
-                  <TransferNote morning={morningTransfer} noon={noonTransfer} unit={product.unit} />
-                </div>
-              )}
+
             </div>
 
             {showNotes && (

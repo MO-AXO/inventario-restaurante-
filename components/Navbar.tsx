@@ -1,14 +1,9 @@
 import Link from 'next/link'
 import { logoutAction } from '@/app/actions/auth'
-import { prisma } from '@/lib/db'
 import { getCurrentUser } from '@/lib/auth'
 
-async function getUnreadCount() {
-  return prisma.alert.count({ where: { read: false } })
-}
-
 export default async function Navbar() {
-  const [user, unread] = await Promise.all([getCurrentUser(), getUnreadCount()])
+  const user = await getCurrentUser()
 
   return (
     <nav className="bg-[#211915] text-white px-3 sm:px-5 py-2.5 flex items-center justify-between sticky top-0 z-50 shadow-lg border-b border-orange-500/30">
@@ -29,19 +24,6 @@ export default async function Navbar() {
           >
             <span>📋</span>
             <span className="hidden md:inline">Resumen</span>
-          </Link>
-          <Link
-            href="/alertas"
-            className="relative flex items-center gap-2 px-2.5 py-2 rounded-lg text-sm font-medium text-gray-200 hover:bg-gray-700 hover:text-white transition whitespace-nowrap"
-            title="Alertas"
-          >
-            <span>🔔</span>
-            <span className="hidden md:inline">Alertas</span>
-            {unread > 0 && (
-              <span className="absolute top-0 right-0 bg-red-500 text-white text-[10px] font-bold min-w-4 h-4 px-1 rounded-full flex items-center justify-center">
-                {unread > 9 ? '9+' : unread}
-              </span>
-            )}
           </Link>
 
           {(user?.role === 'OWNER' || user?.role === 'MANAGER') && (

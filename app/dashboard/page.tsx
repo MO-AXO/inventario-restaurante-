@@ -17,6 +17,7 @@ import {
   BEVERAGE_SERVICE_MODULES,
   BODEGA_STOCK_MODULES,
   availableStock,
+  STANDARD_RESTAURANT_MODULES,
 } from '@/lib/utils'
 import { Module, StockStatus } from '@prisma/client'
 import { getSession } from '@/lib/auth'
@@ -27,7 +28,7 @@ async function getDashboardData() {
   const sevenDaysAgo = new Date(today)
   sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7)
 
-  const [products, alertCount, weekRecords, dayClose] = await Promise.all([
+  const [products, weekRecords, dayClose] = await Promise.all([
     prisma.product.findMany({
       where: { active: true },
       include: {
@@ -38,7 +39,7 @@ async function getDashboardData() {
       },
       orderBy: [{ module: 'asc' }, { category: 'asc' }, { name: 'asc' }],
     }),
-    prisma.alert.count({ where: { read: false } }),
+
     prisma.dailyRecord.findMany({
       where: { date: { gte: sevenDaysAgo } },
       include: {
@@ -48,20 +49,20 @@ async function getDashboardData() {
     prisma.dayClose.findUnique({ where: { date: new Date(today) } }),
   ])
 
-  return { products, alertCount, weekRecords, dayClose }
+  return { products, weekRecords, dayClose }
 }
 
 export default async function DashboardPage() {
   const session = await getSession()
   const isOwner = session?.role === 'OWNER'
-  const { products, alertCount, weekRecords, dayClose } = await getDashboardData()
+  const { products, weekRecords, dayClose } = await getDashboardData()
 
   const isClosed = !!dayClose
 
   // Compute status live from actual stock values (not stored DB status)
   function effectiveStock(mod: Module, r: typeof products[0]['records'][0] | undefined): number | null {
     if (!r) return null
-    if (CARNES_SERVICIO_MODULES.includes(mod) || BEVERAGE_SERVICE_MODULES.includes(mod)) return availableStock(mod, r)
+    if (CARNES_SERVICIO_MODULES.includes(mod) || BEVERAGE_SERVICE_MODULES.includes(mod) || STANDARD_RESTAURANT_MODULES.includes(mod)) return availableStock(mod, r)
     if (WEIGHT_MODULES.includes(mod)) return r.finalWeight
     if (SMOKED_MODULES.includes(mod)) return r.weightLb
     if (BODEGA_STOCK_MODULES.includes(mod)) return r.finalStock

@@ -115,6 +115,11 @@ model DailyRecord {
   initialWeight Float?
   restock       Float?
   restockMorning Float?
+
+  // Cierre de carnes: lo que regresa a Bodega y lo que se bota (merma). No cuentan como consumo.
+  returnedQty   Float?
+  wasteQty      Float?
+  wasteReason   String?
   waste1        Float?
   waste2        Float?
   finalWeight   Float?
@@ -171,6 +176,8 @@ model DayConsumptionSnapshot {
   mid              Float?
   restock          Float?
   final            Float?
+  returned         Float?
+  waste            Float?
   createdAt        DateTime @default(now())
 
   @@unique([productId, date])

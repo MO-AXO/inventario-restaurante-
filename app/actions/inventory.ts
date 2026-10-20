@@ -5,7 +5,7 @@ import { prisma } from '@/lib/db'
 import { getSession } from '@/lib/auth'
 import { calcStatus } from '@/lib/utils'
 import { Module } from '@prisma/client'
-import { WEIGHT_MODULES, SMOKED_MODULES, BEVERAGE_SERVICE_MODULES, CARNES_SERVICIO_MODULES, RESTAURANTE_RESTOCK_MAP, BODEGA_STOCK_MODULES } from '@/lib/utils'
+import { WEIGHT_MODULES, SMOKED_MODULES, BEVERAGE_SERVICE_MODULES, CARNES_SERVICIO_MODULES, STANDARD_RESTAURANT_MODULES, MIDDAY_COUNT_MODULES, BODEGA_STOCK_MODULES } from '@/lib/utils'
 
 export async function saveInventoryRecord(
   _prevState: { success?: boolean; error?: string } | undefined,
@@ -57,13 +57,17 @@ export async function saveInventoryRecord(
     const initialWeight = parseNullableNumber(formData.get('initialWeight')) ?? 0
     const midWeight = parseNullableNumber(formData.get('midWeight'))
     const finalWeight = parseNullableNumber(formData.get('finalWeight'))
+    // Si ya se cerró la noche (devolución o merma), el stock es lo que quedó después de devolver y botar.
+    const returnedQty = todayRecord?.returnedQty ?? null
+    const wasteQty = todayRecord?.wasteQty ?? null
+    const closedNight = (returnedQty ?? 0) > 0 || (wasteQty ?? 0) > 0
     const currentStock = finalWeight !== null
-      ? finalWeight
+      ? closedNight ? Math.max(0, finalWeight - (returnedQty ?? 0) - (wasteQty ?? 0)) : finalWeight
       : midWeight !== null
       ? midWeight + restockNoon
       : initialWeight + restockMorning + restockNoon
     const status = calcStatus(currentStock, product.minStock)
-    data = { ...data, initialWeight, waste1: midWeight, ...restockData, finalWeight, currentStock, status }
+    data = { ...data, initialWeight, waste1: midWeight, ...restockData, finalWeight, returnedQty, wasteQty, currentStock, status }
   } else if (WEIGHT_MODULES.includes(module)) {
     const units = parseInt(formData.get('units') as string) || 0
     const initialWeight = parseFloat(formData.get('initialWeight') as string) || 0
@@ -94,10 +98,19 @@ export async function saveInventoryRecord(
     const finalStock = parseFloat(formData.get('finalStock') as string) || 0
     const status = calcStatus(finalStock, product.minStock)
     data = { ...data, initialStock, restock, finalStock, currentStock: finalStock, status }
-  } else if (module in RESTAURANTE_RESTOCK_MAP) {
-    const currentStock = parseFloat(formData.get('currentStock') as string) || 0
+  } else if (STANDARD_RESTAURANT_MODULES.includes(module)) {
+    // Mismo flujo que las bebidas: inicial → recargas (las registra el traslado) → mediodía → final.
+    const initialStock = parseNullableNumber(formData.get('initialStock')) ?? 0
+    const midStock = MIDDAY_COUNT_MODULES.includes(module) ? parseNullableNumber(formData.get('midStock')) : null
+    const finalStock = parseNullableNumber(formData.get('finalStock'))
+    const currentStock = finalStock !== null
+      ? finalStock
+      : midStock !== null
+      ? midStock + restockNoon
+      : initialStock + restockMorning + restockNoon
+    const consumption = finalStock === null ? null : initialStock + restockMorning + restockNoon - finalStock
     const status = calcStatus(currentStock, product.minStock)
-    data = { ...data, currentStock, ...restockData, status }
+    data = { ...data, initialStock, midStock, ...restockData, finalStock, consumption, currentStock, status }
   } else {
     const currentStock = parseFloat(formData.get('currentStock') as string) || 0
     const status = calcStatus(currentStock, product.minStock)
@@ -110,24 +123,7 @@ export async function saveInventoryRecord(
     create: data as Parameters<typeof prisma.dailyRecord.create>[0]['data'],
   })
 
-  // Create alert if CRITICO or BAJO — one unread alert per product max
-  if (data.status === 'CRITICO' || data.status === 'BAJO') {
-    await prisma.alert.deleteMany({ where: { productId, read: false } })
-    await prisma.alert.create({
-      data: {
-        productId,
-        productName: product.name,
-        module,
-        status: data.status as 'CRITICO' | 'BAJO',
-        message: `${product.name} está en estado ${data.status}. Stock: ${data.currentStock} ${product.unit} (mínimo: ${product.minStock})`,
-      },
-    })
-  } else {
-    await prisma.alert.deleteMany({ where: { productId, read: false } })
-  }
-
   revalidatePath('/dashboard')
-  revalidatePath('/alertas')
   revalidatePath(`/inventario/${module.toLowerCase()}`)
 
   return { success: true }
@@ -135,19 +131,4 @@ export async function saveInventoryRecord(
     console.error('saveInventoryRecord error:', err)
     return { error: 'Error al guardar. Intentá de nuevo.' }
   }
-}
-
-export async function markAlertRead(alertId: string): Promise<void> {
-  await prisma.alert.update({ where: { id: alertId }, data: { read: true } })
-  revalidatePath('/alertas')
-}
-
-export async function markAllAlertsRead(): Promise<void> {
-  await prisma.alert.updateMany({ where: { read: false }, data: { read: true } })
-  revalidatePath('/alertas')
-}
-
-export async function deleteReadAlerts(): Promise<void> {
-  await prisma.alert.deleteMany({ where: { read: true } })
-  revalidatePath('/alertas')
 }

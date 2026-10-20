@@ -3,10 +3,8 @@
 import { revalidatePath } from 'next/cache'
 import { prisma } from '@/lib/db'
 import { getSession } from '@/lib/auth'
-import { todayDate, CARNES_SERVICIO_MODULES, BEVERAGE_SERVICE_MODULES } from '@/lib/utils'
+import { todayDate, CARNES_SERVICIO_MODULES, BEVERAGE_SERVICE_MODULES, STANDARD_RESTAURANT_MODULES, CONSUMPTION_MODULES } from '@/lib/utils'
 import { Module } from '@prisma/client'
-
-const CONSUMPTION_MODULES: Module[] = [...CARNES_SERVICIO_MODULES, ...BEVERAGE_SERVICE_MODULES]
 
 export async function closeDayAction(): Promise<void> {
   const session = await getSession()
@@ -56,7 +54,7 @@ export async function closeDayAction(): Promise<void> {
         initial !== null && final !== null
           ? initial + (restock ?? 0) - final
           : null
-    } else if (BEVERAGE_SERVICE_MODULES.includes(mod)) {
+    } else if (BEVERAGE_SERVICE_MODULES.includes(mod) || STANDARD_RESTAURANT_MODULES.includes(mod)) {
       const morning = r.restockMorning ?? 0
       initial = r.initialStock
       mid = r.midStock
@@ -72,6 +70,8 @@ export async function closeDayAction(): Promise<void> {
     }
 
     if (consumption === null) continue
+    const returned = r.returnedQty ?? null
+    const waste = r.wasteQty ?? null
 
     await prisma.dayConsumptionSnapshot.upsert({
       where: { productId_date: { productId: r.productId, date: todayDate_ } },
@@ -86,6 +86,8 @@ export async function closeDayAction(): Promise<void> {
         mid,
         restock,
         final,
+        returned,
+        waste,
       },
       create: {
         date: todayDate_,
@@ -100,6 +102,8 @@ export async function closeDayAction(): Promise<void> {
         mid,
         restock,
         final,
+        returned,
+        waste,
       },
     })
   }

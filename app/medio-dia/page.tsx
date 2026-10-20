@@ -136,6 +136,7 @@ export default async function MedioDiaPage() {
                 <thead>
                   <tr>
                     <Header>Producto</Header>
+                    <Header>Inicial</Header>
                     <Header>+ Mañana</Header>
                     <Header>Final mediodía</Header>
                     <Header>+ Mediodía</Header>
@@ -146,6 +147,8 @@ export default async function MedioDiaPage() {
                   {rows.map((record) => (
                     <tr key={record.id} className="border-t border-gray-100">
                       <td className="px-4 py-3 font-medium">{record.product.name}</td>
+                      {/* Registros viejos solo guardaron "stock actual": se lee como el inicial de ese día. */}
+                      <td className="px-4 py-3 text-right">{formatValue(record.initialStock ?? record.currentStock)}</td>
                       <td className="px-4 py-3 text-right text-blue-600">{formatValue(record.restockMorning)}</td>
                       <td className="px-4 py-3 text-right font-bold text-orange-600">{formatValue(record.midStock)}</td>
                       <td className="px-4 py-3 text-right text-blue-600">{formatValue(record.restock)}</td>

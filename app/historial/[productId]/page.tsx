@@ -12,6 +12,7 @@ import {
   WEIGHT_MODULES,
   SMOKED_MODULES,
   BEVERAGE_SERVICE_MODULES,
+  STANDARD_RESTAURANT_MODULES,
 } from '@/lib/utils'
 import { Module, StockStatus } from '@prisma/client'
 
@@ -33,7 +34,7 @@ export default async function HistorialPage({ params }: Props) {
   const isCarnesServicio = CARNES_SERVICIO_MODULES.includes(mod)
   const isWeight = WEIGHT_MODULES.includes(mod)
   const isSmoked = SMOKED_MODULES.includes(mod)
-  const isBeverage = BEVERAGE_SERVICE_MODULES.includes(mod)
+  const isBeverage = BEVERAGE_SERVICE_MODULES.includes(mod) || STANDARD_RESTAURANT_MODULES.includes(mod)
 
   return (
     <div className="min-h-screen flex flex-col">

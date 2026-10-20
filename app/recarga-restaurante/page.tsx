@@ -11,6 +11,8 @@ import {
   RESTAURANTE_MODULES,
   MIDDAY_COUNT_MODULES,
   WAREHOUSE_FOR_RESTAURANT,
+  RETURNABLE_SHARED_IDS,
+  CARNES_SERVICIO_MODULES,
   todayDate,
   availableStock,
   warehouseStock,
@@ -33,7 +35,7 @@ export default async function RecargaRestorantePage() {
       include: { records: { orderBy: { date: 'desc' }, take: 1 } },
     }),
     prisma.purchase.findMany({
-      where: { kind: 'TRASLADO', batchId: { not: null } },
+      where: { kind: { in: ['TRASLADO', 'DEVOLUCION', 'MERMA'] }, batchId: { not: null } },
       take: 120,
       orderBy: { createdAt: 'desc' },
       include: { product: { select: { name: true } } },
@@ -64,11 +66,30 @@ export default async function RecargaRestorantePage() {
     }
   })
 
-  const batchMap = new Map<string, { batchId: string; shift: string; createdAt: string; items: { name: string; unit: string; quantity: number }[] }>()
+  // Carnes que regresan a Bodega al cerrar: solo las del catálogo definido, con lo que ya hay registrado hoy.
+  const closingRows = products
+    .filter((p) => CARNES_SERVICIO_MODULES.includes(p.module) && p.sharedId && RETURNABLE_SHARED_IDS.includes(p.sharedId))
+    .map((p) => {
+      const rec = p.records[0] && p.records[0].date.toISOString().split('T')[0] === today ? p.records[0] : null
+      const warehouse = p.sharedId ? warehouseByKey.get(`${WAREHOUSE_FOR_RESTAURANT[p.module]}:${p.sharedId}`) : undefined
+      return {
+        id: p.id,
+        name: p.name,
+        unit: p.unit,
+        available: availableStock(p.module, p.records[0] ?? null),
+        finalToday: rec && rec.finalWeight !== null && !(rec.finalWeight === 0 && (rec.initialWeight ?? 0) > 0 && !rec.waste1) ? rec.finalWeight : null,
+        returnedToday: rec?.returnedQty ?? 0,
+        wasteToday: rec?.wasteQty ?? 0,
+        warehouseAvailable: warehouse ? warehouseStock(warehouse.module, warehouse.records[0] ?? null) : null,
+        linked: !!warehouse && warehouse.unit.trim().toLowerCase() === p.unit.trim().toLowerCase(),
+      }
+    })
+
+  const batchMap = new Map<string, { batchId: string; shift: string; createdAt: string; items: { name: string; unit: string; quantity: number; kind: string }[] }>()
   for (const t of transfers) {
     if (!t.batchId) continue
     const batch = batchMap.get(t.batchId) ?? { batchId: t.batchId, shift: t.shift ?? 'MANANA', createdAt: t.createdAt.toISOString(), items: [] }
-    batch.items.push({ name: t.product.name, unit: t.unit, quantity: t.quantity })
+    batch.items.push({ name: t.product.name, unit: t.unit, quantity: t.quantity, kind: t.kind })
     batchMap.set(t.batchId, batch)
   }
   const batches = Array.from(batchMap.values()).slice(0, 10)
@@ -91,7 +112,7 @@ export default async function RecargaRestorantePage() {
             El día está cerrado. Para registrar traslados, el dueño debe reabrirlo desde el Dashboard.
           </div>
         ) : (
-          <TransferPanel products={rows} batches={batches} />
+          <TransferPanel products={rows} batches={batches} closingRows={closingRows} />
         )}
       </main>
     </div>

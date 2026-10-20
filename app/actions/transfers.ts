@@ -2,7 +2,7 @@
 
 import { randomUUID } from 'crypto'
 import { revalidatePath } from 'next/cache'
-import { Module, Prisma, Product, StockStatus } from '@prisma/client'
+import { Module, Prisma } from '@prisma/client'
 import { prisma } from '@/lib/db'
 import { getSession } from '@/lib/auth'
 import {
@@ -10,6 +10,7 @@ import {
   MIDDAY_COUNT_MODULES,
   CARNES_SERVICIO_MODULES,
   BEVERAGE_SERVICE_MODULES,
+  STANDARD_RESTAURANT_MODULES,
   BODEGA_STOCK_MODULES,
   SMOKED_MODULES,
   WAREHOUSE_FOR_RESTAURANT,
@@ -17,6 +18,7 @@ import {
   todayDate,
   calcStatus,
   availableStock,
+  carriedStock,
   warehouseStock,
   readMidCount,
 } from '@/lib/utils'
@@ -43,22 +45,6 @@ export type TransferResult =
 
 function fmt(value: number) {
   return Number.isInteger(value) ? String(value) : value.toFixed(2)
-}
-
-
-async function syncAlert(tx: Prisma.TransactionClient, product: Product, status: StockStatus, stock: number) {
-  await tx.alert.deleteMany({ where: { productId: product.id, read: false } })
-  if (status === 'CRITICO' || status === 'BAJO') {
-    await tx.alert.create({
-      data: {
-        productId: product.id,
-        productName: product.name,
-        module: product.module,
-        status,
-        message: `${product.name} está en estado ${status}. Stock: ${stock} ${product.unit} (mínimo: ${product.minStock})`,
-      },
-    })
-  }
 }
 
 export async function registerTransfer(shift: TransferShift, lines: TransferLine[]): Promise<TransferResult> {
@@ -124,6 +110,7 @@ export async function registerTransfer(shift: TransferShift, lines: TransferLine
           const mod = product.module as Module
           const isCarnes = CARNES_SERVICIO_MODULES.includes(mod)
           const isBeverage = BEVERAGE_SERVICE_MODULES.includes(mod)
+          const isStandard = STANDARD_RESTAURANT_MODULES.includes(mod)
           const wantsMid = shift === 'MEDIODIA' && MIDDAY_COUNT_MODULES.includes(mod)
           if (line.quantity <= 0 && !wantsMid) continue
           const warehouseModule = WAREHOUSE_FOR_RESTAURANT[mod]
@@ -143,11 +130,14 @@ export async function registerTransfer(shift: TransferShift, lines: TransferLine
             notes: today?.notes ?? null,
           }
 
-          if (isCarnes || isBeverage) {
+          if (isCarnes || isBeverage || isStandard) {
             const hadRecordToday = !!today
+            // Sin registro de hoy, el inicial es lo que quedó ayer; si hoy hay uno en formato viejo, su stock es el inicial.
             const initial = hadRecordToday
-              ? (isCarnes ? today!.initialWeight : today!.initialStock) ?? 0
-              : availableStock(mod, latest) ?? 0
+              ? (isCarnes ? today!.initialWeight : today!.initialStock ?? today!.currentStock) ?? 0
+              : isCarnes
+              ? availableStock(mod, latest) ?? 0
+              : carriedStock(mod, latest)
             let mid = hadRecordToday ? readMidCount(mod, today) : null
             const final = hadRecordToday ? (isCarnes ? today!.finalWeight : today!.finalStock) : null
             let morning = today?.restockMorning ?? 0
@@ -173,6 +163,11 @@ export async function registerTransfer(shift: TransferShift, lines: TransferLine
             if (!isCarnes) {
               fields.consumption = final === null ? null : initial + morning + noon - final
             }
+            // Después de recargar, un final escrito antes ya no vale en los módulos estándar: se vuelve a contar al cerrar.
+            if (isStandard) {
+              fields.finalStock = null
+              fields.consumption = null
+            }
             fields.currentStock = availableStock(mod, {
               currentStock: null,
               initialWeight: fields.initialWeight ?? null,
@@ -185,15 +180,7 @@ export async function registerTransfer(shift: TransferShift, lines: TransferLine
               finalStock: fields.finalStock ?? null,
             })
           } else {
-            // Módulos simples: el conteo de mediodía (si aplica) reemplaza el stock y luego se suma la recarga.
-            const base = wantsMid && line.midCount !== null ? line.midCount : (latest?.currentStock ?? 0)
-            fields.currentStock = base + line.quantity
-            if (shift === 'MANANA') fields.restockMorning = (today?.restockMorning ?? 0) + line.quantity
-            else {
-              fields.restock = (today?.restock ?? 0) + line.quantity
-              fields.restockMorning = today?.restockMorning ?? null
-            }
-            if (wantsMid && line.midCount !== null) fields.midStock = line.midCount
+            fields.currentStock = (latest?.currentStock ?? 0) + line.quantity
           }
 
           const stockNow = fields.currentStock ?? 0
@@ -203,7 +190,7 @@ export async function registerTransfer(shift: TransferShift, lines: TransferLine
             update: fields,
             create: fields,
           })
-          await syncAlert(tx, product, fields.status as StockStatus, stockNow)
+
 
           // Descuento en Bodega por ID compartido, sin bajar de 0.
           let deducted = 0
@@ -247,7 +234,7 @@ export async function registerTransfer(shift: TransferShift, lines: TransferLine
               update: wData,
               create: wData,
             })
-            await syncAlert(tx, warehouse, wStatus, warehouseLeft)
+
 
             if (deducted < line.quantity) {
               warnings.push(`${product.name}: Bodega solo tenía ${fmt(previous)} ${warehouse.unit}, se descontó ${fmt(deducted)} y quedó en 0.`)
@@ -292,7 +279,7 @@ export async function registerTransfer(shift: TransferShift, lines: TransferLine
     revalidatePath('/recarga-restaurante')
     revalidatePath('/compras')
     revalidatePath('/dashboard')
-    revalidatePath('/alertas')
+
     revalidatePath('/resumen')
     revalidatePath('/medio-dia')
     revalidatePath('/consumo')

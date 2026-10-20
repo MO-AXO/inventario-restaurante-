@@ -203,6 +203,19 @@ export const MIDDAY_COUNT_MODULES: Module[] = [
   'FRITURAS_RESTAURANTE',
 ]
 
+// Módulos de restaurante con el mismo flujo que las bebidas: inicial → recargas → (mediodía) → final.
+// Carnes y bebidas tienen su propio formulario.
+export const STANDARD_RESTAURANT_MODULES: Module[] = RESTAURANTE_MODULES.filter(
+  (m) => !CARNES_SERVICIO_MODULES.includes(m) && !BEVERAGE_SERVICE_MODULES.includes(m)
+)
+
+// Módulos donde se calcula consumo (inicial + recargas - final).
+export const CONSUMPTION_MODULES: Module[] = [
+  ...CARNES_SERVICIO_MODULES,
+  ...BEVERAGE_SERVICE_MODULES,
+  ...STANDARD_RESTAURANT_MODULES,
+]
+
 // El conteo de mediodía de las carnes vive en waste1; en los demás módulos, en midStock.
 export function readMidCount(
   mod: Module,
@@ -218,10 +231,35 @@ type StockRecord = {
   waste1: number | null
   restock: number | null
   restockMorning: number | null
+  returnedQty?: number | null
+  wasteQty?: number | null
   finalWeight: number | null
   initialStock: number | null
   midStock: number | null
   finalStock: number | null
+}
+
+export function round3(n: number) {
+  return Math.round(n * 1000) / 1000
+}
+
+// Carnes ahumadas que regresan a Bodega al cerrar el servicio de la noche (por ID compartido).
+// Del final contado, una parte regresa y otra se bota como merma; el resto se queda en el restaurante.
+export const RETURNABLE_SHARED_IDS: string[] = [
+  'carne-brisket-ahumado',
+  'carne-costilla-de-cerdo-ahumada',
+  'carne-costillas-de-res-ahumadas',
+  'carne-pork-belly-ahumado',
+  'carne-pulled-pork-ahumado',
+  'carne-puyaso-ahumado',
+]
+
+// Cierre de las carnes que regresan: todo lo que sobra vuelve a Bodega, menos la merma que se bota.
+// Devuelto = peso final - merma. Es válido mientras la merma no supere el peso final.
+export function closingBalance(input: { final: number; waste: number }) {
+  const waste = round3(input.waste)
+  const returned = round3(input.final - waste)
+  return { returned, waste, remaining: 0, valid: waste >= 0 && returned >= 0 }
 }
 
 // Unidades realmente disponibles de un producto de restaurante.
@@ -231,6 +269,15 @@ export function availableStock(mod: Module, r: StockRecord | null | undefined): 
   if (!r) return null
   const isCarnes = CARNES_SERVICIO_MODULES.includes(mod)
   const isBeverage = BEVERAGE_SERVICE_MODULES.includes(mod)
+
+  if (STANDARD_RESTAURANT_MODULES.includes(mod)) {
+    // Final escrito > conteo de mediodía + recarga de mediodía > inicial + recargas.
+    // Un registro viejo con solo "stock actual" se respeta tal cual.
+    if (r.finalStock !== null) return r.finalStock
+    if (r.midStock !== null) return r.midStock + (r.restock ?? 0)
+    if (r.initialStock !== null) return r.initialStock + (r.restockMorning ?? 0) + (r.restock ?? 0)
+    return r.currentStock
+  }
   if (!isCarnes && !isBeverage) return r.currentStock
 
   const initial = (isCarnes ? r.initialWeight : r.initialStock) ?? 0
@@ -238,7 +285,12 @@ export function availableStock(mod: Module, r: StockRecord | null | undefined): 
   const final = isCarnes ? r.finalWeight : r.finalStock
   // Un final en 0 con inicial positivo y sin mediodía es un final que nunca se capturó.
   const finalNotCaptured = final === 0 && initial > 0 && !mid
-  if (final !== null && !finalNotCaptured) return final
+  // El final de las carnes se cuenta antes de devolver o botar; lo disponible es lo que se queda en el restaurante.
+  if (final !== null && !finalNotCaptured) {
+    // Si ya se cerró la noche (hay devolución o merma), esa carne volvió a Bodega o se botó: no queda nada.
+    const closed = isCarnes && ((r.returnedQty ?? 0) > 0 || (r.wasteQty ?? 0) > 0)
+    return closed ? Math.max(0, round3(final - (r.returnedQty ?? 0) - (r.wasteQty ?? 0))) : final
+  }
   if (mid !== null && !finalNotCaptured) return mid + (r.restock ?? 0)
   return initial + (r.restockMorning ?? 0) + (r.restock ?? 0)
 }
@@ -251,6 +303,14 @@ export type CarriedFrom = { date: string; estimated: boolean }
 
 // Si el último registro es de un día anterior, devuelve un registro "de arranque" para hoy: el inicial es lo que
 // quedó disponible y se limpian conteos y recargas de ayer. No escribe nada; solo prepara lo que ve el formulario.
+// Lo que pasa a ser el inicial del día siguiente. Bebidas: el final se deduce de availableStock.
+// Resto de módulos: primero el "Inventario final" escrito y, si no hay, el último stock guardado.
+export function carriedStock(mod: Module, record: StockRecord | null | undefined): number {
+  if (!record) return 0
+  if (BEVERAGE_SERVICE_MODULES.includes(mod)) return availableStock(mod, record) ?? 0
+  return record.finalStock ?? record.currentStock ?? 0
+}
+
 export function carryOverRecord<T extends StockRecord & { date: Date; consumption: number | null }>(
   mod: Module,
   record: T | null | undefined,
@@ -258,23 +318,31 @@ export function carryOverRecord<T extends StockRecord & { date: Date; consumptio
 ): { record: T | null; carriedFrom: CarriedFrom | null } {
   if (!record) return { record: null, carriedFrom: null }
   const recordDate = record.date.toISOString().split('T')[0]
-  if (recordDate >= today || !CARRY_OVER_MODULES.includes(mod)) return { record, carriedFrom: null }
 
-  const carried = availableStock(mod, record) ?? 0
+  if (recordDate >= today) {
+    // Registro de hoy en formato viejo (solo "stock actual"): ese número se lee como el inicial.
+    if (STANDARD_RESTAURANT_MODULES.includes(mod) && record.initialStock === null && record.currentStock !== null) {
+      return { record: { ...record, initialStock: record.currentStock }, carriedFrom: null }
+    }
+    return { record, carriedFrom: null }
+  }
+  if (!CARRY_OVER_MODULES.includes(mod)) return { record, carriedFrom: null }
+
   const isBeverage = BEVERAGE_SERVICE_MODULES.includes(mod)
-  // Solo las bebidas tienen un final propio; en los demás módulos el stock guardado ya es el del cierre.
-  const finalCaptured =
-    record.finalStock !== null &&
-    !(record.finalStock === 0 && (record.initialStock ?? 0) > 0 && !record.midStock)
+  const carried = carriedStock(mod, record)
+  const finalCaptured = isBeverage
+    ? record.finalStock !== null &&
+      !(record.finalStock === 0 && (record.initialStock ?? 0) > 0 && !record.midStock)
+    : record.finalStock !== null
   const carriedRecord = {
     ...record,
     currentStock: carried,
-    initialStock: isBeverage ? carried : record.initialStock,
+    initialStock: carried,
     midStock: null,
     finalStock: null,
     restock: null,
     restockMorning: null,
     consumption: null,
   } as T
-  return { record: carriedRecord, carriedFrom: { date: recordDate, estimated: isBeverage && !finalCaptured } }
+  return { record: carriedRecord, carriedFrom: { date: recordDate, estimated: !finalCaptured } }
 }

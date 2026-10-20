@@ -11,6 +11,8 @@ type ExistingRecord = {
   waste1: number | null
   restock: number | null
   restockMorning: number | null
+  returnedQty?: number | null
+  wasteQty?: number | null
   waste2: number | null
   finalWeight: number | null
   units: number | null
@@ -38,7 +40,7 @@ type Product = {
   isExistingToday: boolean
 }
 
-type FormType = 'carnes_servicio' | 'weight' | 'smoked' | 'beverage_service' | 'bodega_stock' | 'salsas_restaurante' | 'simple'
+type FormType = 'carnes_servicio' | 'weight' | 'smoked' | 'beverage_service' | 'bodega_stock' | 'standard_restaurant' | 'simple'
 
 type Props = {
   products: Product[]
