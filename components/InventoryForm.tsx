@@ -42,6 +42,7 @@ type Props = {
   formType: 'carnes_servicio' | 'weight' | 'smoked' | 'beverage_service' | 'bodega_stock' | 'salsas_restaurante' | 'simple'
   existing: ExistingRecord | null
   isExistingToday: boolean
+  carriedFrom?: { date: string; estimated: boolean } | null
   action: (state: ActionState, formData: FormData) => Promise<ActionState>
   dayClosed?: boolean
 }
@@ -66,6 +67,10 @@ function effectiveStock(
     default: // simple, salsas_restaurante
       return existing.currentStock
   }
+}
+
+function formatCarryDate(date: string) {
+  return new Date(date + 'T12:00:00').toLocaleDateString('es-CR', { weekday: 'long', day: 'numeric', month: 'short' })
 }
 
 // Lo que la pantalla de traslado ya llevó hoy. Solo lectura: se registra en Recarga Restaurante.
@@ -102,7 +107,7 @@ function stockBadgeClass(s: string | undefined) {
   return 'bg-gray-100 text-gray-500 border-gray-200'
 }
 
-export default function InventoryForm({ product, today, formType, existing, isExistingToday, action, dayClosed }: Props) {
+export default function InventoryForm({ product, today, formType, existing, isExistingToday, carriedFrom, action, dayClosed }: Props) {
   const [open, setOpen] = useState(!existing)
   const [state, formAction, pending] = useActionState(action, undefined)
 
@@ -220,9 +225,18 @@ export default function InventoryForm({ product, today, formType, existing, isEx
               <p className="text-sm text-green-700 bg-green-50 rounded-lg px-3 py-2">✓ Guardado</p>
             )}
             {existing && !isExistingToday && !state?.success && (
-              <p className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
-                Mostrando último registro guardado. Al guardar se creará el registro de hoy.
-              </p>
+              carriedFrom ? (
+                <p className="text-xs text-blue-800 bg-blue-50 border border-blue-200 rounded-lg px-3 py-2">
+                  {carriedFrom.estimated
+                    ? `El ${formatCarryDate(carriedFrom.date)} no se completó el inventario final; se usa lo que había disponible (${stock ?? 0} ${product.unit}) como inicial de hoy.`
+                    : `Inicial de hoy tomado del inventario final del ${formatCarryDate(carriedFrom.date)}: ${stock ?? 0} ${product.unit}.`}
+                  {' '}Corrígelo si no coincide y guarda.
+                </p>
+              ) : (
+                <p className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
+                  Mostrando último registro guardado. Al guardar se creará el registro de hoy.
+                </p>
+              )
             )}
 
             <div className="pt-3">

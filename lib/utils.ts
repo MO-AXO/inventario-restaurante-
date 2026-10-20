@@ -242,3 +242,39 @@ export function availableStock(mod: Module, r: StockRecord | null | undefined): 
   if (mid !== null && !finalNotCaptured) return mid + (r.restock ?? 0)
   return initial + (r.restockMorning ?? 0) + (r.restock ?? 0)
 }
+
+// El inventario final de un día pasa a ser el inicial del siguiente en todos los módulos del restaurante,
+// menos Carnes para Servicio, donde el inicial se pesa cada día.
+export const CARRY_OVER_MODULES: Module[] = RESTAURANTE_MODULES.filter((m) => !CARNES_SERVICIO_MODULES.includes(m))
+
+export type CarriedFrom = { date: string; estimated: boolean }
+
+// Si el último registro es de un día anterior, devuelve un registro "de arranque" para hoy: el inicial es lo que
+// quedó disponible y se limpian conteos y recargas de ayer. No escribe nada; solo prepara lo que ve el formulario.
+export function carryOverRecord<T extends StockRecord & { date: Date; consumption: number | null }>(
+  mod: Module,
+  record: T | null | undefined,
+  today: string
+): { record: T | null; carriedFrom: CarriedFrom | null } {
+  if (!record) return { record: null, carriedFrom: null }
+  const recordDate = record.date.toISOString().split('T')[0]
+  if (recordDate >= today || !CARRY_OVER_MODULES.includes(mod)) return { record, carriedFrom: null }
+
+  const carried = availableStock(mod, record) ?? 0
+  const isBeverage = BEVERAGE_SERVICE_MODULES.includes(mod)
+  // Solo las bebidas tienen un final propio; en los demás módulos el stock guardado ya es el del cierre.
+  const finalCaptured =
+    record.finalStock !== null &&
+    !(record.finalStock === 0 && (record.initialStock ?? 0) > 0 && !record.midStock)
+  const carriedRecord = {
+    ...record,
+    currentStock: carried,
+    initialStock: isBeverage ? carried : record.initialStock,
+    midStock: null,
+    finalStock: null,
+    restock: null,
+    restockMorning: null,
+    consumption: null,
+  } as T
+  return { record: carriedRecord, carriedFrom: { date: recordDate, estimated: isBeverage && !finalCaptured } }
+}

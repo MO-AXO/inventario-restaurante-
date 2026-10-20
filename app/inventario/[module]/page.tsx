@@ -4,7 +4,7 @@ import { notFound } from 'next/navigation'
 import { prisma } from '@/lib/db'
 import Navbar from '@/components/Navbar'
 import ModuleProductList from '@/components/ModuleProductList'
-import { MODULE_LABELS, MODULE_ICONS, todayDate, WEIGHT_MODULES, SMOKED_MODULES, BEVERAGE_SERVICE_MODULES, CARNES_SERVICIO_MODULES, RESTAURANTE_RESTOCK_MAP, BODEGA_STOCK_MODULES } from '@/lib/utils'
+import { MODULE_LABELS, MODULE_ICONS, todayDate, WEIGHT_MODULES, SMOKED_MODULES, BEVERAGE_SERVICE_MODULES, CARNES_SERVICIO_MODULES, RESTAURANTE_RESTOCK_MAP, BODEGA_STOCK_MODULES, carryOverRecord } from '@/lib/utils'
 import { Module } from '@prisma/client'
 
 type Props = { params: Promise<{ module: string }> }
@@ -76,19 +76,24 @@ export default async function InventarioModulePage({ params }: Props) {
           </div>
         ) : (
           <ModuleProductList
-            products={products.map((p) => ({
-              id: p.id,
-              name: p.name,
-              sharedId: p.sharedId,
-              category: p.category,
-              unit: p.unit,
-              minStock: p.minStock,
-              module: p.module,
-              existing: p.records[0] ?? null,
-              isExistingToday: p.records[0]
-                ? new Date(p.records[0].date).toISOString().split('T')[0] === today
-                : false,
-            }))}
+            products={products.map((p) => {
+              // El final de ayer es el inicial de hoy (salvo en carnes para servicio).
+              const carry = carryOverRecord(p.module, p.records[0], today)
+              return {
+                id: p.id,
+                name: p.name,
+                sharedId: p.sharedId,
+                category: p.category,
+                unit: p.unit,
+                minStock: p.minStock,
+                module: p.module,
+                existing: carry.record,
+                carriedFrom: carry.carriedFrom,
+                isExistingToday: p.records[0]
+                  ? new Date(p.records[0].date).toISOString().split('T')[0] === today
+                  : false,
+              }
+            })}
             today={today}
             formType={formType}
             dayClosed={isClosed}

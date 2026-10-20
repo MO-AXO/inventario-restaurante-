@@ -34,6 +34,7 @@ type Product = {
   minStock: number
   module: Module
   existing: ExistingRecord | null
+  carriedFrom: { date: string; estimated: boolean } | null
   isExistingToday: boolean
 }
 
@@ -117,6 +118,7 @@ export default function ModuleProductList({ products, today, formType, dayClosed
                 formType={formType}
                 existing={product.existing}
                 isExistingToday={product.isExistingToday}
+                carriedFrom={product.carriedFrom}
                 action={saveInventoryRecord}
                 dayClosed={dayClosed}
               />
