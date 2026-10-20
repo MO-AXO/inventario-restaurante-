@@ -48,6 +48,7 @@ export default async function AdminPage() {
               className="border border-gray-300 rounded-xl px-3 py-2.5" required />
             <select name="role" className="border border-gray-300 rounded-xl px-3 py-2.5">
               <option value="EMPLOYEE">Empleado</option>
+              <option value="MANAGER">Gerente</option>
               <option value="OWNER">Dueño</option>
             </select>
             <button type="submit" className="col-span-2 bg-orange-500 text-white font-bold py-2.5 rounded-xl">
@@ -61,8 +62,8 @@ export default async function AdminPage() {
                 <div key={u.id} className="flex justify-between items-center text-sm border border-gray-100 rounded-xl px-3 py-2">
                   <span className={`font-medium ${!u.active ? 'text-gray-400 line-through' : ''}`}>{u.name}</span>
                   <div className="flex items-center gap-2">
-                    <span className={`text-xs px-2 py-0.5 rounded-full ${u.role === 'OWNER' ? 'bg-purple-100 text-purple-700' : 'bg-gray-100 text-gray-600'}`}>
-                      {u.role === 'OWNER' ? 'Dueño' : 'Empleado'}
+                    <span className={`text-xs px-2 py-0.5 rounded-full ${u.role === 'OWNER' ? 'bg-purple-100 text-purple-700' : u.role === 'MANAGER' ? 'bg-blue-100 text-blue-700' : 'bg-gray-100 text-gray-600'}`}>
+                      {u.role === 'OWNER' ? 'Dueño' : u.role === 'MANAGER' ? 'Gerente' : 'Empleado'}
                     </span>
                     <form action={toggleUserActive}>
                       <input type="hidden" name="userId" value={u.id} />

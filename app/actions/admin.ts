@@ -13,7 +13,7 @@ export async function createUser(formData: FormData): Promise<void> {
 
   const name = formData.get('name') as string
   const pin = formData.get('pin') as string
-  const role = formData.get('role') as 'OWNER' | 'EMPLOYEE'
+  const role = formData.get('role') as 'OWNER' | 'EMPLOYEE' | 'MANAGER'
 
   const hashed = await hashPin(pin)
   await prisma.user.create({ data: { name, pin: hashed, role } })

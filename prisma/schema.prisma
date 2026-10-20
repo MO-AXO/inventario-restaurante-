@@ -16,6 +16,7 @@ datasource db {
 enum Role {
   OWNER
   EMPLOYEE
+  MANAGER
 }
 
 enum Module {
@@ -93,6 +94,9 @@ model Purchase {
   notes     String?
   userId    String?
   kind      String   @default("COMPRA")
+  shift     String?
+  batchId   String?
+  warehouseDeducted Float?
   createdAt DateTime @default(now())
 
   @@index([productId, createdAt])
@@ -110,6 +114,7 @@ model DailyRecord {
   // Seguimiento de peso (carnes preparadas, carne cruda, verduras)
   initialWeight Float?
   restock       Float?
+  restockMorning Float?
   waste1        Float?
   waste2        Float?
   finalWeight   Float?

@@ -16,6 +16,7 @@ import {
   SMOKED_MODULES,
   BEVERAGE_SERVICE_MODULES,
   BODEGA_STOCK_MODULES,
+  availableStock,
 } from '@/lib/utils'
 import { Module, StockStatus } from '@prisma/client'
 import { getSession } from '@/lib/auth'
@@ -60,9 +61,10 @@ export default async function DashboardPage() {
   // Compute status live from actual stock values (not stored DB status)
   function effectiveStock(mod: Module, r: typeof products[0]['records'][0] | undefined): number | null {
     if (!r) return null
-    if (CARNES_SERVICIO_MODULES.includes(mod) || WEIGHT_MODULES.includes(mod)) return r.finalWeight
+    if (CARNES_SERVICIO_MODULES.includes(mod) || BEVERAGE_SERVICE_MODULES.includes(mod)) return availableStock(mod, r)
+    if (WEIGHT_MODULES.includes(mod)) return r.finalWeight
     if (SMOKED_MODULES.includes(mod)) return r.weightLb
-    if (BEVERAGE_SERVICE_MODULES.includes(mod) || BODEGA_STOCK_MODULES.includes(mod)) return r.finalStock
+    if (BODEGA_STOCK_MODULES.includes(mod)) return r.finalStock
     return r.currentStock
   }
   function liveStatus(p: typeof products[0]): StockStatus | null {
@@ -93,7 +95,7 @@ export default async function DashboardPage() {
     let consumption: number | null = null
 
     if (CARNES_SERVICIO_MODULES.includes(mod) || WEIGHT_MODULES.includes(mod)) {
-      consumption = (r.initialWeight ?? 0) + (r.restock ?? 0) - (r.finalWeight ?? 0)
+      consumption = (r.initialWeight ?? 0) + (r.restockMorning ?? 0) + (r.restock ?? 0) - (r.finalWeight ?? 0)
     } else if (BEVERAGE_SERVICE_MODULES.includes(mod)) {
       consumption = r.consumption ?? null
     }

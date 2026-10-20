@@ -44,6 +44,17 @@ export default async function Navbar() {
             )}
           </Link>
 
+          {(user?.role === 'OWNER' || user?.role === 'MANAGER') && (
+            <Link
+              href="/recarga-restaurante"
+              className="flex items-center gap-2 px-2.5 py-2 rounded-lg text-sm font-medium text-gray-200 hover:bg-gray-700 hover:text-white transition whitespace-nowrap"
+              title="Recarga Restaurante"
+            >
+              <span>🔄</span>
+              <span className="hidden md:inline">Recarga Restaurante</span>
+            </Link>
+          )}
+
           {user?.role === 'OWNER' && (
             <>
               <Link
@@ -53,14 +64,6 @@ export default async function Navbar() {
               >
                 <span>🛒</span>
                 <span className="hidden md:inline">Añadir inventario</span>
-              </Link>
-              <Link
-                href="/recarga-restaurante"
-                className="flex items-center gap-2 px-2.5 py-2 rounded-lg text-sm font-medium text-gray-200 hover:bg-gray-700 hover:text-white transition whitespace-nowrap"
-                title="Recarga Restaurante"
-              >
-                <span>🔄</span>
-                <span className="hidden md:inline">Recarga Restaurante</span>
               </Link>
               <Link
                 href="/consumo"

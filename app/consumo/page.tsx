@@ -91,24 +91,33 @@ export default async function ConsumoDiarioPage({ searchParams }: Props) {
     let final: number | null = null
 
     if (CARNES_SERVICIO_MODULES.includes(mod)) {
+      const morning = r.restockMorning ?? 0
       initial = r.initialWeight
       mid = r.waste1          // waste1 stores mid-day weight
-      restock = r.restock
+      restock = morning + (r.restock ?? 0)
       final = r.finalWeight
       if (initial !== null && mid !== null) {
-        consumoMedioDia = initial - mid
+        consumoMedioDia = initial + morning - mid
       }
       if (mid !== null && final !== null) {
-        consumoNoche = mid + (restock ?? 0) - final
+        consumoNoche = mid + (r.restock ?? 0) - final
       }
       if (initial !== null && final !== null) {
-        consumption = (initial) + (restock ?? 0) - final
+        consumption = initial + restock - final
       }
     } else if (BEVERAGE_SERVICE_MODULES.includes(mod)) {
+      const morning = r.restockMorning ?? 0
       initial = r.initialStock
-      restock = r.restock
+      mid = r.midStock
+      restock = morning + (r.restock ?? 0)
       final = r.finalStock
       consumption = r.consumption
+      if (initial !== null && mid !== null) {
+        consumoMedioDia = initial + morning - mid
+      }
+      if (mid !== null && final !== null) {
+        consumoNoche = mid + (r.restock ?? 0) - final
+      }
     }
 
     productMap[pid].days[dateStr] = { consumption, consumoMedioDia, consumoNoche, initial, mid, restock, final }

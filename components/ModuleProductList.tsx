@@ -10,6 +10,7 @@ type ExistingRecord = {
   initialWeight: number | null
   waste1: number | null
   restock: number | null
+  restockMorning: number | null
   waste2: number | null
   finalWeight: number | null
   units: number | null

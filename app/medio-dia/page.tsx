@@ -4,7 +4,16 @@ import Navbar from '@/components/Navbar'
 import { prisma } from '@/lib/db'
 import { getSession } from '@/lib/auth'
 import { redirect } from 'next/navigation'
-import { todayDate } from '@/lib/utils'
+import { Module } from '@prisma/client'
+import { todayDate, MODULE_LABELS, MODULE_ICONS } from '@/lib/utils'
+
+// Módulos sin columna "inicial" propia: su apertura se guarda como stock y el traslado de la mañana la reemplaza.
+const COUNT_ONLY_MODULES: Module[] = [
+  'SALSAS_ADEREZOS_RESTAURANTE',
+  'VERDURAS_RESTAURANTE',
+  'PAN_RESTAURANTE',
+  'FRITURAS_RESTAURANTE',
+]
 
 export default async function MedioDiaPage() {
   const session = await getSession()
@@ -16,7 +25,7 @@ export default async function MedioDiaPage() {
       date: new Date(today),
       product: {
         active: true,
-        module: { in: ['CARNES_PREPARADAS', 'BEBIDAS_SERVICIO'] },
+        module: { in: ['CARNES_PREPARADAS', 'BEBIDAS_SERVICIO', ...COUNT_ONLY_MODULES] },
       },
     },
     include: {
@@ -44,7 +53,7 @@ export default async function MedioDiaPage() {
             </div>
           </div>
           <p className="mt-3 text-sm text-gray-600 bg-orange-50 border border-orange-100 rounded-xl px-3 py-2">
-            Consulta cuánto quedaba de carne y bebidas al medio día.
+            Consulta lo que se contó al medio día: el peso o conteo final de mediodía se registra en Recarga Restaurante.
           </p>
         </div>
 
@@ -59,7 +68,9 @@ export default async function MedioDiaPage() {
               <tr>
                 <Header>Producto</Header>
                 <Header>Inicial</Header>
-                <Header>Mediodía</Header>
+                <Header>+ Mañana</Header>
+                <Header>Peso final mediodía</Header>
+                <Header>+ Mediodía</Header>
                 <Header>Unidad</Header>
               </tr>
             </thead>
@@ -68,7 +79,9 @@ export default async function MedioDiaPage() {
                 <tr key={record.id} className="border-t border-gray-100">
                   <td className="px-4 py-3 font-medium">{record.product.name}</td>
                   <td className="px-4 py-3 text-right">{formatValue(record.initialWeight)}</td>
+                  <td className="px-4 py-3 text-right text-blue-600">{formatValue(record.restockMorning)}</td>
                   <td className="px-4 py-3 text-right font-bold text-orange-600">{formatValue(record.waste1)}</td>
+                  <td className="px-4 py-3 text-right text-blue-600">{formatValue(record.restock)}</td>
                   <td className="px-4 py-3 text-right text-gray-500">{record.product.unit}</td>
                 </tr>
               ))}
@@ -77,7 +90,7 @@ export default async function MedioDiaPage() {
           {carnes.length === 0 && <Empty message="Todavía no hay pesos de carnes registrados hoy." />}
         </section>
 
-        <section>
+        <section className="mb-6">
           <div className="flex items-center gap-2 mb-3">
             <span className="text-xl">🥤</span>
             <h2 className="text-lg font-bold">Bebidas de servicio</h2>
@@ -88,7 +101,9 @@ export default async function MedioDiaPage() {
               <tr>
                 <Header>Producto</Header>
                 <Header>Inicial</Header>
-                <Header>Mediodía</Header>
+                <Header>+ Mañana</Header>
+                <Header>Final mediodía</Header>
+                <Header>+ Mediodía</Header>
                 <Header>Unidad</Header>
               </tr>
             </thead>
@@ -97,7 +112,9 @@ export default async function MedioDiaPage() {
                 <tr key={record.id} className="border-t border-gray-100">
                   <td className="px-4 py-3 font-medium">{record.product.name}</td>
                   <td className="px-4 py-3 text-right">{formatValue(record.initialStock)}</td>
+                  <td className="px-4 py-3 text-right text-blue-600">{formatValue(record.restockMorning)}</td>
                   <td className="px-4 py-3 text-right font-bold text-orange-600">{formatValue(record.midStock)}</td>
+                  <td className="px-4 py-3 text-right text-blue-600">{formatValue(record.restock)}</td>
                   <td className="px-4 py-3 text-right text-gray-500">{record.product.unit}</td>
                 </tr>
               ))}
@@ -105,6 +122,42 @@ export default async function MedioDiaPage() {
           </DataTable>
           {bebidas.length === 0 && <Empty message="Todavía no hay bebidas registradas hoy." />}
         </section>
+
+        {COUNT_ONLY_MODULES.map((mod) => {
+          const rows = records.filter((record) => record.product.module === mod)
+          return (
+            <section key={mod} className="mb-6">
+              <div className="flex items-center gap-2 mb-3">
+                <span className="text-xl">{MODULE_ICONS[mod]}</span>
+                <h2 className="text-lg font-bold">{MODULE_LABELS[mod]}</h2>
+                <span className="text-xs text-gray-400">{rows.length} registrados</span>
+              </div>
+              <DataTable>
+                <thead>
+                  <tr>
+                    <Header>Producto</Header>
+                    <Header>+ Mañana</Header>
+                    <Header>Final mediodía</Header>
+                    <Header>+ Mediodía</Header>
+                    <Header>Unidad</Header>
+                  </tr>
+                </thead>
+                <tbody>
+                  {rows.map((record) => (
+                    <tr key={record.id} className="border-t border-gray-100">
+                      <td className="px-4 py-3 font-medium">{record.product.name}</td>
+                      <td className="px-4 py-3 text-right text-blue-600">{formatValue(record.restockMorning)}</td>
+                      <td className="px-4 py-3 text-right font-bold text-orange-600">{formatValue(record.midStock)}</td>
+                      <td className="px-4 py-3 text-right text-blue-600">{formatValue(record.restock)}</td>
+                      <td className="px-4 py-3 text-right text-gray-500">{record.product.unit}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </DataTable>
+              {rows.length === 0 && <Empty message="Todavía no hay registros de este módulo hoy." />}
+            </section>
+          )
+        })}
       </main>
     </div>
   )

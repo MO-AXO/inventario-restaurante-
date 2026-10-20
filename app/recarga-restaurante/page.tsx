@@ -1,52 +1,77 @@
 export const dynamic = 'force-dynamic'
 
 import Navbar from '@/components/Navbar'
-import PurchasesPanel from '@/components/PurchasesPanel'
+import TransferPanel from '@/components/TransferPanel'
 import { prisma } from '@/lib/db'
 import { getSession } from '@/lib/auth'
 import { redirect } from 'next/navigation'
-import { MODULE_LABELS, MODULE_ICONS, RESTAURANTE_MODULES, todayDate, availableStock } from '@/lib/utils'
-import { registerRestaurantRecharge } from '@/app/actions/recharges'
+import {
+  MODULE_LABELS,
+  MODULE_ICONS,
+  RESTAURANTE_MODULES,
+  MIDDAY_COUNT_MODULES,
+  WAREHOUSE_FOR_RESTAURANT,
+  todayDate,
+  availableStock,
+  warehouseStock,
+  readMidCount,
+} from '@/lib/utils'
 
 export default async function RecargaRestorantePage() {
   const session = await getSession()
-  if (!session || session.role !== 'OWNER') redirect('/dashboard')
+  if (!session || (session.role !== 'OWNER' && session.role !== 'MANAGER')) redirect('/dashboard')
 
   const today = todayDate()
-  const [products, recentRecharges] = await Promise.all([
+  const [products, warehouseProducts, transfers, dayClose] = await Promise.all([
     prisma.product.findMany({
       where: { active: true, module: { in: RESTAURANTE_MODULES } },
       include: { records: { orderBy: { date: 'desc' }, take: 1 } },
       orderBy: [{ module: 'asc' }, { name: 'asc' }],
     }),
+    prisma.product.findMany({
+      where: { active: true, sharedId: { not: null }, module: { in: Object.values(WAREHOUSE_FOR_RESTAURANT) } },
+      include: { records: { orderBy: { date: 'desc' }, take: 1 } },
+    }),
     prisma.purchase.findMany({
-      where: { kind: 'RECARGA_RESTAURANTE' },
-      take: 20,
+      where: { kind: 'TRASLADO', batchId: { not: null } },
+      take: 120,
       orderBy: { createdAt: 'desc' },
       include: { product: { select: { name: true } } },
     }),
+    prisma.dayClose.findUnique({ where: { date: new Date(today) } }),
   ])
 
-  const restaurantProducts = products.map((p) => ({
-    id: p.id,
-    name: p.name,
-    category: p.category,
-    moduleLabel: MODULE_LABELS[p.module],
-    moduleIcon: MODULE_ICONS[p.module],
-    unit: p.unit,
-    sharedId: p.sharedId,
-    currentStock: availableStock(p.module, p.records[0] ?? null),
-  }))
+  const warehouseByKey = new Map(warehouseProducts.map((w) => [`${w.module}:${w.sharedId}`, w]))
 
-  const recent = recentRecharges.map((r) => ({
-    id: r.id,
-    productName: r.product.name,
-    quantity: r.quantity,
-    unit: r.unit,
-    supplier: null,
-    unitCost: null,
-    createdAt: r.createdAt.toISOString(),
-  }))
+  const rows = products.map((p) => {
+    const warehouseModule = WAREHOUSE_FOR_RESTAURANT[p.module]
+    const warehouse = warehouseModule && p.sharedId ? warehouseByKey.get(`${warehouseModule}:${p.sharedId}`) : undefined
+    return {
+      id: p.id,
+      name: p.name,
+      sharedId: p.sharedId,
+      moduleLabel: MODULE_LABELS[p.module],
+      moduleIcon: MODULE_ICONS[p.module],
+      needsMidCount: MIDDAY_COUNT_MODULES.includes(p.module),
+      unit: p.unit,
+      available: availableStock(p.module, p.records[0] ?? null),
+      // Solo el conteo de hoy: el de ayer no es el final de mediodía de hoy.
+      midCountToday: p.records[0] && p.records[0].date.toISOString().split('T')[0] === today
+        ? readMidCount(p.module, p.records[0])
+        : null,
+      linked: !!warehouse && warehouse.unit.trim().toLowerCase() === p.unit.trim().toLowerCase(),
+      warehouseAvailable: warehouse ? warehouseStock(warehouse.module, warehouse.records[0] ?? null) : null,
+    }
+  })
+
+  const batchMap = new Map<string, { batchId: string; shift: string; createdAt: string; items: { name: string; unit: string; quantity: number }[] }>()
+  for (const t of transfers) {
+    if (!t.batchId) continue
+    const batch = batchMap.get(t.batchId) ?? { batchId: t.batchId, shift: t.shift ?? 'MANANA', createdAt: t.createdAt.toISOString(), items: [] }
+    batch.items.push({ name: t.product.name, unit: t.unit, quantity: t.quantity })
+    batchMap.set(t.batchId, batch)
+  }
+  const batches = Array.from(batchMap.values()).slice(0, 10)
 
   const dateLabel = new Date(today + 'T12:00:00').toLocaleDateString('es-CR', {
     weekday: 'long', day: 'numeric', month: 'long', year: 'numeric',
@@ -61,18 +86,13 @@ export default async function RecargaRestorantePage() {
           <p className="text-sm text-gray-500 capitalize">{dateLabel}</p>
         </div>
 
-        <PurchasesPanel
-          products={restaurantProducts}
-          recent={recent}
-          action={registerRestaurantRecharge}
-          title="Recargar el restaurante"
-          description="La cantidad se suma de inmediato al inventario del restaurante."
-          icon="🔄"
-          submitLabel="Añadir recarga"
-          successMessage="Recarga añadida y stock actualizado."
-          recentTitle="Últimas recargas"
-          showPurchaseFields={false}
-        />
+        {dayClose ? (
+          <div className="bg-gray-100 border border-gray-300 rounded-2xl px-4 py-6 text-center text-gray-600">
+            El día está cerrado. Para registrar traslados, el dueño debe reabrirlo desde el Dashboard.
+          </div>
+        ) : (
+          <TransferPanel products={rows} batches={batches} />
+        )}
       </main>
     </div>
   )

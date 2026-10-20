@@ -2,7 +2,7 @@ export const dynamic = 'force-dynamic'
 
 import Navbar from '@/components/Navbar'
 import { prisma } from '@/lib/db'
-import { todayDate, MODULE_LABELS, SECTION_GROUPS, MODULE_ICONS, statusColor, statusBadge, calcStatus, CARNES_SERVICIO_MODULES, WEIGHT_MODULES, SMOKED_MODULES, BEVERAGE_SERVICE_MODULES, BODEGA_STOCK_MODULES } from '@/lib/utils'
+import { todayDate, MODULE_LABELS, SECTION_GROUPS, MODULE_ICONS, statusColor, statusBadge, calcStatus, availableStock, CARNES_SERVICIO_MODULES, WEIGHT_MODULES, SMOKED_MODULES, BEVERAGE_SERVICE_MODULES, BODEGA_STOCK_MODULES } from '@/lib/utils'
 import { Module, StockStatus } from '@prisma/client'
 
 type StockRecord = {
@@ -10,9 +10,12 @@ type StockRecord = {
   finalWeight: number | null
   weightLb: number | null
   finalStock: number | null
+  midStock: number | null
+  waste1: number | null
   initialWeight: number | null
   initialStock: number | null
   restock: number | null
+  restockMorning: number | null
   units: number | null
   status: string
   date: Date
@@ -31,7 +34,8 @@ type ProductRow = {
 
 function effectiveStock(mod: Module, record: StockRecord | undefined): number | null {
   if (!record) return null
-  if (CARNES_SERVICIO_MODULES.includes(mod) || WEIGHT_MODULES.includes(mod)) return record.finalWeight
+  if (CARNES_SERVICIO_MODULES.includes(mod) || BEVERAGE_SERVICE_MODULES.includes(mod)) return availableStock(mod, record)
+  if (WEIGHT_MODULES.includes(mod)) return record.finalWeight
   if (SMOKED_MODULES.includes(mod)) return record.weightLb
   if (BEVERAGE_SERVICE_MODULES.includes(mod) || BODEGA_STOCK_MODULES.includes(mod)) return record.finalStock
   return record.currentStock
@@ -39,9 +43,7 @@ function effectiveStock(mod: Module, record: StockRecord | undefined): number | 
 
 // Para el estado, compara inicial + recarga vs mínimo en módulos que aplica
 function stockForStatus(mod: Module, record: StockRecord): number | null {
-  if (CARNES_SERVICIO_MODULES.includes(mod))
-    return (record.initialWeight ?? 0) + (record.restock ?? 0)
-  if (BEVERAGE_SERVICE_MODULES.includes(mod) || BODEGA_STOCK_MODULES.includes(mod))
+  if (BODEGA_STOCK_MODULES.includes(mod))
     return (record.initialStock ?? 0) + (record.restock ?? 0)
   return effectiveStock(mod, record)
 }
@@ -62,21 +64,26 @@ function initialDisplay(mod: Module, record: StockRecord | undefined, unit: stri
 }
 
 function restockDisplay(mod: Module, record: StockRecord | undefined, unit: string): string {
-  if (!record || record.restock === null || record.restock === 0 || SMOKED_MODULES.includes(mod)) return '—'
-  return `+${record.restock.toFixed(1)} ${unit}`
+  if (!record || SMOKED_MODULES.includes(mod)) return '—'
+  const total = (record.restockMorning ?? 0) + (record.restock ?? 0)
+  return total === 0 ? '—' : `+${total.toFixed(1)} ${unit}`
 }
 
 function stockDisplay(product: { unit: string; module: Module }, record: StockRecord | undefined): string {
   if (!record) return '—'
   const mod = product.module
-  if (CARNES_SERVICIO_MODULES.includes(mod) || WEIGHT_MODULES.includes(mod))
+  if (CARNES_SERVICIO_MODULES.includes(mod) || BEVERAGE_SERVICE_MODULES.includes(mod)) {
+    const available = availableStock(mod, record)
+    return available !== null ? `${available.toFixed(1)} ${product.unit}` : '—'
+  }
+  if (WEIGHT_MODULES.includes(mod))
     return record.finalWeight !== null ? `${record.finalWeight.toFixed(1)} ${product.unit}` : '—'
   if (SMOKED_MODULES.includes(mod)) {
     const u = record.units !== null ? `${record.units} u` : '—'
     const w = record.weightLb !== null ? `${record.weightLb.toFixed(1)} LB` : '—'
     return `${u} / ${w}`
   }
-  if (BEVERAGE_SERVICE_MODULES.includes(mod) || BODEGA_STOCK_MODULES.includes(mod))
+  if (BODEGA_STOCK_MODULES.includes(mod))
     return record.finalStock !== null ? `${record.finalStock.toFixed(1)} ${product.unit}` : '—'
   return record.currentStock !== null ? `${record.currentStock.toFixed(1)} ${product.unit}` : '—'
 }

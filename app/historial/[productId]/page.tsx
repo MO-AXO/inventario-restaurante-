@@ -113,11 +113,11 @@ export default async function HistorialPage({ params }: Props) {
                       <>
                         <td className="px-3 py-3 text-right">{r.initialWeight?.toFixed(1) ?? '—'}</td>
                         <td className="px-3 py-3 text-right">{r.waste1?.toFixed(1) ?? '—'}</td>
-                        <td className="px-3 py-3 text-right">{r.restock ? r.restock.toFixed(1) : '—'}</td>
+                        <td className="px-3 py-3 text-right">{(r.restockMorning ?? 0) + (r.restock ?? 0) > 0 ? ((r.restockMorning ?? 0) + (r.restock ?? 0)).toFixed(1) : '—'}</td>
                         <td className="px-3 py-3 text-right font-semibold">{r.finalWeight?.toFixed(1) ?? '—'}</td>
                         <td className="px-3 py-3 text-right font-semibold text-amber-600">
                           {r.initialWeight !== null && r.waste1 !== null
-                            ? (r.initialWeight - r.waste1).toFixed(1)
+                            ? (r.initialWeight + (r.restockMorning ?? 0) - r.waste1).toFixed(1)
                             : '—'}
                         </td>
                         <td className="px-3 py-3 text-right font-semibold text-indigo-500">
@@ -127,7 +127,7 @@ export default async function HistorialPage({ params }: Props) {
                         </td>
                         <td className="px-3 py-3 text-right font-bold text-orange-600">
                           {r.initialWeight !== null && r.finalWeight !== null
-                            ? (r.initialWeight + (r.restock ?? 0) - r.finalWeight).toFixed(1)
+                            ? (r.initialWeight + (r.restockMorning ?? 0) + (r.restock ?? 0) - r.finalWeight).toFixed(1)
                             : '—'}
                         </td>
                       </>
@@ -155,7 +155,7 @@ export default async function HistorialPage({ params }: Props) {
                     {isBeverage && (
                       <>
                         <td className="px-3 py-3 text-right">{r.initialStock?.toFixed(1) ?? '—'}</td>
-                        <td className="px-3 py-3 text-right">{r.restock ? r.restock.toFixed(1) : '—'}</td>
+                        <td className="px-3 py-3 text-right">{(r.restockMorning ?? 0) + (r.restock ?? 0) > 0 ? ((r.restockMorning ?? 0) + (r.restock ?? 0)).toFixed(1) : '—'}</td>
                         <td className="px-3 py-3 text-right font-semibold">
                           {r.finalStock?.toFixed(1) ?? '—'}
                         </td>

@@ -166,11 +166,58 @@ export const SIMPLE_STOCK_MODULES: Module[] = [
   'SALSAS_ADEREZOS_BODEGA', 'CONDIMENTOS_BODEGA', 'MATERIA_PRIMA_SALSA', 'LIMPIEZA_BODEGA',
 ]
 
+// A qué módulo de Bodega pertenece cada módulo del restaurante. Se usa junto con el ID compartido.
+export const WAREHOUSE_FOR_RESTAURANT: Partial<Record<Module, Module>> = {
+  BEBIDAS_SERVICIO:               'BEBIDAS_BODEGA',
+  SALSAS_ADEREZOS_RESTAURANTE:    'SALSAS_ADEREZOS_BODEGA',
+  VERDURAS_RESTAURANTE:           'VERDURAS',
+  LACTEOS_RESTAURANTE:            'LACTEOS_BODEGA',
+  DESECHABLES_BOLSAS_RESTAURANTE: 'DESECHABLES_BODEGA',
+  PAN_RESTAURANTE:                'PAN',
+  FRITURAS_RESTAURANTE:           'FRITURAS',
+  HARINAS_ACEITE_RESTAURANTE:     'HARINAS_ACEITE_BODEGA',
+  CONDIMENTOS_RESTAURANTE:        'CONDIMENTOS_BODEGA',
+  LIMPIEZA_RESTAURANTE:           'LIMPIEZA_BODEGA',
+  CARNES_PREPARADAS:              'CARNES_AHUMADAS',
+}
+
+// Stock actual de un producto de Bodega; cada módulo lo guarda en un campo distinto.
+export function warehouseStock(
+  mod: Module,
+  r: { currentStock: number | null; finalStock: number | null; weightLb: number | null } | null | undefined
+): number {
+  if (!r) return 0
+  if (BODEGA_STOCK_MODULES.includes(mod)) return r.finalStock ?? r.currentStock ?? 0
+  if (SMOKED_MODULES.includes(mod)) return r.weightLb ?? r.currentStock ?? 0
+  return r.currentStock ?? 0
+}
+
+// Módulos de restaurante que se cuentan al mediodía, antes de la recarga de la noche.
+// Los demás (desechables, condimentos, lácteos, harinas y limpieza) solo se cuentan al abrir y al cerrar.
+export const MIDDAY_COUNT_MODULES: Module[] = [
+  'CARNES_PREPARADAS',
+  'BEBIDAS_SERVICIO',
+  'SALSAS_ADEREZOS_RESTAURANTE',
+  'VERDURAS_RESTAURANTE',
+  'PAN_RESTAURANTE',
+  'FRITURAS_RESTAURANTE',
+]
+
+// El conteo de mediodía de las carnes vive en waste1; en los demás módulos, en midStock.
+export function readMidCount(
+  mod: Module,
+  r: { waste1: number | null; midStock: number | null } | null | undefined
+): number | null {
+  if (!r) return null
+  return CARNES_SERVICIO_MODULES.includes(mod) ? r.waste1 : r.midStock
+}
+
 type StockRecord = {
   currentStock: number | null
   initialWeight: number | null
   waste1: number | null
   restock: number | null
+  restockMorning: number | null
   finalWeight: number | null
   initialStock: number | null
   midStock: number | null
@@ -178,7 +225,8 @@ type StockRecord = {
 }
 
 // Unidades realmente disponibles de un producto de restaurante.
-// Carnes y bebidas de servicio: final físico si existe; si no, mediodía (o inicial) + recarga.
+// Carnes y bebidas de servicio: final físico si existe; si no, conteo de mediodía + recarga de mediodía,
+// o, sin conteo de mediodía, inicial + recarga de la mañana + recarga de mediodía.
 export function availableStock(mod: Module, r: StockRecord | null | undefined): number | null {
   if (!r) return null
   const isCarnes = CARNES_SERVICIO_MODULES.includes(mod)
@@ -191,6 +239,6 @@ export function availableStock(mod: Module, r: StockRecord | null | undefined): 
   // Un final en 0 con inicial positivo y sin mediodía es un final que nunca se capturó.
   const finalNotCaptured = final === 0 && initial > 0 && !mid
   if (final !== null && !finalNotCaptured) return final
-  const base = finalNotCaptured ? initial : (mid ?? initial)
-  return base + (r.restock ?? 0)
+  if (mid !== null && !finalNotCaptured) return mid + (r.restock ?? 0)
+  return initial + (r.restockMorning ?? 0) + (r.restock ?? 0)
 }

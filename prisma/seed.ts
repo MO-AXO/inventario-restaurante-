@@ -1155,6 +1155,36 @@ async function main() {
     if (warehouse) await prisma.product.update({ where: { id: warehouse.id }, data: { sharedId: link.sharedId } })
   }
 
+  // Mismo ID compartido = misma unidad de medida. Bodega es la referencia porque de ahí se descuenta.
+  const unitPairs: [Module, Module][] = [
+    ['BEBIDAS_SERVICIO', 'BEBIDAS_BODEGA'],
+    ['SALSAS_ADEREZOS_RESTAURANTE', 'SALSAS_ADEREZOS_BODEGA'],
+    ['VERDURAS_RESTAURANTE', 'VERDURAS'],
+    ['LACTEOS_RESTAURANTE', 'LACTEOS_BODEGA'],
+    ['DESECHABLES_BOLSAS_RESTAURANTE', 'DESECHABLES_BODEGA'],
+    ['PAN_RESTAURANTE', 'PAN'],
+    ['FRITURAS_RESTAURANTE', 'FRITURAS'],
+    ['HARINAS_ACEITE_RESTAURANTE', 'HARINAS_ACEITE_BODEGA'],
+    ['CONDIMENTOS_RESTAURANTE', 'CONDIMENTOS_BODEGA'],
+    ['LIMPIEZA_RESTAURANTE', 'LIMPIEZA_BODEGA'],
+    ['CARNES_PREPARADAS', 'CARNES_AHUMADAS'],
+  ]
+  for (const [restaurantModule, warehouseModule] of unitPairs) {
+    const warehouseProducts = await prisma.product.findMany({
+      where: { module: warehouseModule, active: true, sharedId: { not: null } },
+    })
+    for (const warehouseProduct of warehouseProducts) {
+      const unit = warehouseProduct.unit.trim()
+      if (warehouseProduct.unit !== unit) {
+        await prisma.product.update({ where: { id: warehouseProduct.id }, data: { unit } })
+      }
+      await prisma.product.updateMany({
+        where: { module: restaurantModule, sharedId: warehouseProduct.sharedId, unit: { not: unit } },
+        data: { unit },
+      })
+    }
+  }
+
   console.log('✓ Seed complete!')
   console.log('\nDefault credentials:')
   console.log('  Dueño  → PIN: 1234')

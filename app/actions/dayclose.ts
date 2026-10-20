@@ -41,25 +41,34 @@ export async function closeDayAction(): Promise<void> {
     let mid: number | null = null
 
     if (CARNES_SERVICIO_MODULES.includes(mod)) {
+      const morning = r.restockMorning ?? 0
       initial = r.initialWeight
       mid = r.waste1
-      restock = r.restock
+      restock = morning + (r.restock ?? 0)
       final = r.finalWeight
       if (initial !== null && mid !== null) {
-        consumoMedioDia = initial - mid
+        consumoMedioDia = initial + morning - mid
       }
       if (mid !== null && final !== null) {
-        consumoNoche = mid + (restock ?? 0) - final
+        consumoNoche = mid + (r.restock ?? 0) - final
       }
       consumption =
         initial !== null && final !== null
           ? initial + (restock ?? 0) - final
           : null
     } else if (BEVERAGE_SERVICE_MODULES.includes(mod)) {
+      const morning = r.restockMorning ?? 0
       initial = r.initialStock
-      restock = r.restock
+      mid = r.midStock
+      restock = morning + (r.restock ?? 0)
       final = r.finalStock
       consumption = r.consumption
+      if (initial !== null && mid !== null) {
+        consumoMedioDia = initial + morning - mid
+      }
+      if (mid !== null && final !== null) {
+        consumoNoche = mid + (r.restock ?? 0) - final
+      }
     }
 
     if (consumption === null) continue

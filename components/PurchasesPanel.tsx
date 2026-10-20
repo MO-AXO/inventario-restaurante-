@@ -25,7 +25,7 @@ type RecentPurchase = {
   createdAt: string
 }
 
-type ActionResult = { success?: boolean; error?: string } | undefined
+type ActionResult = { success?: boolean; error?: string; info?: string; warning?: string } | undefined
 
 type PanelProps = {
   products: Product[]
@@ -137,6 +137,8 @@ export default function PurchasesPanel({
 
         {state?.error && <p className="mb-3 rounded-xl bg-red-50 text-red-700 px-3 py-2 text-sm">{state.error}</p>}
         {state?.success && <p className="mb-3 rounded-xl bg-green-50 text-green-700 px-3 py-2 text-sm">{successMessage}</p>}
+                {state?.success && state.info && <p className="mb-3 rounded-xl bg-blue-50 text-blue-700 px-3 py-2 text-sm">{state.info}</p>}
+                {state?.success && state.warning && <p className="mb-3 rounded-xl bg-amber-50 text-amber-800 border border-amber-200 px-3 py-2 text-sm">{state.warning}</p>}
 
         <div className="space-y-4 max-h-[34rem] overflow-y-auto pr-1">
           {Object.entries(grouped).map(([moduleLabel, moduleProducts]) => (

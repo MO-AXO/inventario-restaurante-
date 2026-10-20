@@ -44,15 +44,26 @@ export async function saveInventoryRecord(
     userId: session.userId,
   }
 
+  // Las recargas ya no se escriben aquí: las registra la pantalla de traslado (que también descuenta de Bodega).
+  // Este formulario solo conserva lo que el traslado ya guardó hoy.
+  const todayRecord = await prisma.dailyRecord.findUnique({
+    where: { productId_date: { productId, date: new Date(date) } },
+  })
+  const restockMorning = todayRecord?.restockMorning ?? 0
+  const restockNoon = todayRecord?.restock ?? 0
+  const restockData = { restockMorning: todayRecord?.restockMorning ?? null, restock: todayRecord?.restock ?? null }
+
   if (CARNES_SERVICIO_MODULES.includes(module)) {
     const initialWeight = parseNullableNumber(formData.get('initialWeight')) ?? 0
     const midWeight = parseNullableNumber(formData.get('midWeight'))
-    const restock = parseNullableNumber(formData.get('restock')) ?? 0
     const finalWeight = parseNullableNumber(formData.get('finalWeight'))
-    const baseStock = finalWeight ?? midWeight ?? initialWeight
-    const currentStock = baseStock + (finalWeight === null ? restock : 0)
+    const currentStock = finalWeight !== null
+      ? finalWeight
+      : midWeight !== null
+      ? midWeight + restockNoon
+      : initialWeight + restockMorning + restockNoon
     const status = calcStatus(currentStock, product.minStock)
-    data = { ...data, initialWeight, waste1: midWeight, restock, finalWeight, currentStock, status }
+    data = { ...data, initialWeight, waste1: midWeight, ...restockData, finalWeight, currentStock, status }
   } else if (WEIGHT_MODULES.includes(module)) {
     const units = parseInt(formData.get('units') as string) || 0
     const initialWeight = parseFloat(formData.get('initialWeight') as string) || 0
@@ -68,12 +79,15 @@ export async function saveInventoryRecord(
   } else if (BEVERAGE_SERVICE_MODULES.includes(module)) {
     const initialStock = parseNullableNumber(formData.get('initialStock')) ?? 0
     const midStock = parseNullableNumber(formData.get('midStock'))
-    const restock = parseNullableNumber(formData.get('restock')) ?? 0
     const finalStock = parseNullableNumber(formData.get('finalStock'))
-    const currentStock = finalStock ?? midStock ?? initialStock
-    const consumption = finalStock === null ? null : initialStock + restock - finalStock
+    const currentStock = finalStock !== null
+      ? finalStock
+      : midStock !== null
+      ? midStock + restockNoon
+      : initialStock + restockMorning + restockNoon
+    const consumption = finalStock === null ? null : initialStock + restockMorning + restockNoon - finalStock
     const status = calcStatus(currentStock, product.minStock)
-    data = { ...data, initialStock, midStock, restock, finalStock, consumption, currentStock, status }
+    data = { ...data, initialStock, midStock, ...restockData, finalStock, consumption, currentStock, status }
   } else if (BODEGA_STOCK_MODULES.includes(module)) {
     const initialStock = parseFloat(formData.get('initialStock') as string) || 0
     const restock = parseFloat(formData.get('restock') as string) || 0
@@ -82,13 +96,12 @@ export async function saveInventoryRecord(
     data = { ...data, initialStock, restock, finalStock, currentStock: finalStock, status }
   } else if (module in RESTAURANTE_RESTOCK_MAP) {
     const currentStock = parseFloat(formData.get('currentStock') as string) || 0
-    const restock = parseFloat(formData.get('restock') as string) || 0
     const status = calcStatus(currentStock, product.minStock)
-    data = { ...data, currentStock, restock, status }
+    data = { ...data, currentStock, ...restockData, status }
   } else {
     const currentStock = parseFloat(formData.get('currentStock') as string) || 0
     const status = calcStatus(currentStock, product.minStock)
-    data = { ...data, currentStock, status }
+    data = { ...data, currentStock, ...restockData, status }
   }
 
   await prisma.dailyRecord.upsert({

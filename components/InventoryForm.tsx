@@ -3,7 +3,7 @@
 import { useActionState, useState } from 'react'
 import { Module } from '@prisma/client'
 import Link from 'next/link'
-import { BODEGA_MODULES, calcStatus } from '@/lib/utils'
+import { CARNES_SERVICIO_MODULES, calcStatus, availableStock } from '@/lib/utils'
 
 type Product = {
   id: string
@@ -20,6 +20,7 @@ type ExistingRecord = {
   initialWeight: number | null
   waste1: number | null
   restock: number | null
+  restockMorning: number | null
   waste2: number | null
   finalWeight: number | null
   units: number | null
@@ -48,29 +49,36 @@ type Props = {
 // Extract the relevant stock number from the record based on form type
 function effectiveStock(
   formType: Props['formType'],
-  existing: ExistingRecord | null
+  existing: ExistingRecord | null,
+  module: Module
 ): number | null {
   if (!existing) return null
   switch (formType) {
-    case 'carnes_servicio': {
-      const baseStock = existing.finalWeight ?? existing.waste1 ?? existing.initialWeight
-      if (baseStock === null) return null
-      return baseStock + (existing.finalWeight === null ? (existing.restock ?? 0) : 0)
-    }
+    case 'carnes_servicio':
+    case 'beverage_service':
+      return availableStock(module, existing)
     case 'weight':
       return existing.finalWeight
     case 'smoked':
       return existing.weightLb
-    case 'beverage_service': {
-      const baseStock = existing.finalStock ?? existing.midStock ?? existing.initialStock
-      if (baseStock === null) return null
-      return baseStock + (existing.finalStock === null ? (existing.restock ?? 0) : 0)
-    }
     case 'bodega_stock':
       return existing.finalStock
     default: // simple, salsas_restaurante
       return existing.currentStock
   }
+}
+
+// Lo que la pantalla de traslado ya llevó hoy. Solo lectura: se registra en Recarga Restaurante.
+function TransferNote({ morning, noon, unit }: { morning: number; noon: number; unit: string }) {
+  if (morning + noon <= 0) return null
+  return (
+    <div className="col-span-2 bg-blue-50 border border-blue-200 rounded-xl px-3 py-2 text-xs text-blue-700">
+      Trasladado de Bodega hoy:
+      {morning > 0 && <> mañana <strong>{morning} {unit}</strong></>}
+      {morning > 0 && noon > 0 && ' ·'}
+      {noon > 0 && <> mediodía <strong>{noon} {unit}</strong></>}
+    </div>
+  )
 }
 
 function statusClass(s: string | undefined) {
@@ -103,19 +111,18 @@ export default function InventoryForm({ product, today, formType, existing, isEx
   const [restockStock, setRestockStock] = useState<number>(existing?.restock ?? 0)
   const computedFinal = initStock + restockStock
 
-  // During initial setup, a generated zero final value should not override the initial stock.
+  // Un final en 0 con inicial positivo y sin mediodía es un final que nunca se capturó: se muestra vacío.
   const initialOnly = !!existing && (
-    (formType === 'carnes_servicio' && (existing.initialWeight ?? 0) > 0 && (existing.waste1 === null || existing.waste1 === 0) && existing.finalWeight === 0) ||
-    (formType === 'beverage_service' && (existing.initialStock ?? 0) > 0 && existing.midStock === null && existing.finalStock === 0)
+    (formType === 'carnes_servicio' && (existing.initialWeight ?? 0) > 0 && !existing.waste1 && existing.finalWeight === 0) ||
+    (formType === 'beverage_service' && (existing.initialStock ?? 0) > 0 && !existing.midStock && existing.finalStock === 0)
   )
-  // Compute status live from stock + minStock so the initial inventory is evaluated immediately.
-  const stock = initialOnly
-    ? formType === 'carnes_servicio'
-      ? (existing?.initialWeight ?? 0) + (existing?.restock ?? 0)
-      : (existing?.initialStock ?? 0) + (existing?.restock ?? 0)
-    : effectiveStock(formType, existing)
+  // Disponible real: último conteo + las recargas hechas después (las registra la pantalla de traslado).
+  const stock = effectiveStock(formType, existing, product.module)
+  const morningTransfer = existing?.restockMorning ?? 0
+  const noonTransfer = existing?.restock ?? 0
   const liveStatus = existing ? calcStatus(stock, product.minStock) : undefined
-  const isBodegaModule = BODEGA_MODULES.includes(product.module)
+  // Las observaciones solo se usan en Carnes para Servicio.
+  const showNotes = CARNES_SERVICIO_MODULES.includes(product.module)
 
   const inputClass = 'w-full border border-gray-300 rounded-xl px-3 py-2.5 text-base focus:outline-none focus:ring-2 focus:ring-orange-400 bg-white'
   const labelClass = 'block text-xs font-semibold text-gray-600 mb-1'
@@ -153,7 +160,7 @@ export default function InventoryForm({ product, today, formType, existing, isEx
                   : formType === 'carnes_servicio'
                   ? `Disponible: ${stock ?? '—'} ${product.unit}`
                   : formType === 'salsas_restaurante'
-                  ? `${existing.currentStock ?? '—'} ${product.unit}${existing.restock ? ` (+${existing.restock} recarga)` : ''}`
+                  ? `${existing.currentStock ?? '—'} ${product.unit}${morningTransfer + noonTransfer > 0 ? ` (+${morningTransfer + noonTransfer} recarga)` : ''}`
                   : `${existing.currentStock ?? '—'} ${product.unit}`}
               </div>
               <div className="text-xs text-gray-400">
@@ -227,20 +234,16 @@ export default function InventoryForm({ product, today, formType, existing, isEx
                       defaultValue={existing?.initialWeight ?? ''} className={inputClass} />
                   </div>
                   <div>
-                    <label className={labelClass}>Peso Final Medio Día ({product.unit})</label>
+                    <label className={labelClass}>Peso Final Mediodía ({product.unit})</label>
                     <input type="number" name="midWeight" step="0.01" min="0" inputMode="decimal"
                       defaultValue={initialOnly ? '' : existing?.waste1 ?? ''} className={inputClass} />
-                  </div>
-                  <div>
-                    <label className={labelClass}>Peso Recarga ({product.unit}) — descuenta de Carnes Ahumadas</label>
-                    <input type="number" name="restock" step="0.01" min="0" inputMode="decimal"
-                      defaultValue={existing?.restock ?? ''} placeholder="0" className={inputClass} />
                   </div>
                   <div>
                     <label className={labelClass}>Peso Final del Día ({product.unit})</label>
                     <input type="number" name="finalWeight" step="0.01" min="0" inputMode="decimal"
                       defaultValue={initialOnly ? '' : existing?.finalWeight ?? ''} className={inputClass} />
                   </div>
+                  <TransferNote morning={morningTransfer} noon={noonTransfer} unit={product.unit} />
 
                 </div>
               )}
@@ -310,20 +313,16 @@ export default function InventoryForm({ product, today, formType, existing, isEx
                       defaultValue={existing?.initialStock ?? ''} className={inputClass} />
                   </div>
                   <div>
-                    <label className={labelClass}>Bebidas al medio día ({product.unit})</label>
+                    <label className={labelClass}>Final mediodía ({product.unit})</label>
                     <input type="number" name="midStock" step="0.01" min="0" inputMode="decimal"
                       defaultValue={existing?.midStock ?? ''} placeholder="Cantidad restante" className={inputClass} />
-                  </div>
-                  <div>
-                    <label className={labelClass}>Recarga ({product.unit})</label>
-                    <input type="number" name="restock" step="0.01" min="0" inputMode="decimal"
-                      defaultValue={existing?.restock ?? ''} placeholder="0" className={inputClass} />
                   </div>
                   <div>
                     <label className={labelClass}>Inv. final ({product.unit})</label>
                     <input type="number" name="finalStock" step="0.01" min="0" inputMode="decimal"
                       defaultValue={initialOnly ? '' : existing?.finalStock ?? ''} className={inputClass} />
                   </div>
+                  <TransferNote morning={morningTransfer} noon={noonTransfer} unit={product.unit} />
                   {!initialOnly && existing?.finalStock !== null && existing?.consumption !== null && existing?.consumption !== undefined && (
                     <div className="bg-gray-100 rounded-xl px-3 py-2 flex flex-col justify-center">
                       <span className="text-xs text-gray-600">Consumo</span>
@@ -385,29 +384,12 @@ export default function InventoryForm({ product, today, formType, existing, isEx
                       className={inputClass}
                     />
                   </div>
-                  <div>
-                    <label className={labelClass}>Recarga desde Bodega ({product.unit})</label>
-                    <input
-                      type="number"
-                      name="restock"
-                      step="0.01"
-                      min="0"
-                      inputMode="decimal"
-                      defaultValue={existing?.restock ?? ''}
-                      placeholder="0 — se descuenta de Bodega"
-                      className={inputClass}
-                    />
-                  </div>
-                  {existing?.restock !== null && existing?.restock !== undefined && existing.restock > 0 && (
-                    <div className="bg-blue-50 border border-blue-200 rounded-xl px-3 py-2 text-xs text-blue-700">
-                      Se descontaron <strong>{existing.restock} {product.unit}</strong> de Bodega
-                    </div>
-                  )}
+                  <TransferNote morning={morningTransfer} noon={noonTransfer} unit={product.unit} />
                 </div>
               )}
             </div>
 
-            {!isBodegaModule && (
+            {showNotes && (
               <div>
                 <label className={labelClass}>Notas (opcional)</label>
                 <input
