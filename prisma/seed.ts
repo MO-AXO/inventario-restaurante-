@@ -1025,6 +1025,25 @@ async function main() {
     }
   }
 
+  // Carnes crudas nuevas de Bodega (sin equivalente en el restaurante).
+  for (const name of ['Alitas', 'Lomo de Cerdo', 'Steak de Cerdo']) {
+    const sharedId = `carne-cruda-${name.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/[^a-z0-9]+/g, '-')}`
+    const existing = await prisma.product.findFirst({
+      where: { module: 'CARNE_CRUDA', name },
+      orderBy: [{ active: 'desc' }, { createdAt: 'asc' }],
+    })
+    if (existing) {
+      await prisma.product.update({
+        where: { id: existing.id },
+        data: { active: true, sharedId, category: 'Carne Cruda', unit: 'LB' },
+      })
+    } else {
+      await prisma.product.create({
+        data: { name, category: 'Carne Cruda', module: 'CARNE_CRUDA', unit: 'LB', minStock: 0, sharedId },
+      })
+    }
+  }
+
   // Carnes ahumadas nuevas: se crean en Bodega y en el restaurante con el mismo ID compartido.
   for (const name of ['Alitas Ahumadas', 'Lomo de Cerdo Ahumado', 'Steak Cerdo Ahumado']) {
     const sharedId = `carne-${name.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/[^a-z0-9]+/g, '-')}`
