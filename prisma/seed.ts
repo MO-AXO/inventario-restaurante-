@@ -1025,6 +1025,27 @@ async function main() {
     }
   }
 
+  // Salsas nuevas: se crean en Bodega y en el restaurante con el mismo ID compartido.
+  for (const name of ['Salsa Hot Honey', 'BBQ Buffalo Original', 'Honey Mustard']) {
+    const sharedId = `salsa-${name.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/[^a-z0-9]+/g, '-')}`
+    for (const module of ['SALSAS_ADEREZOS_BODEGA', 'SALSAS_ADEREZOS_RESTAURANTE'] as const) {
+      const existing = await prisma.product.findFirst({
+        where: { module, name },
+        orderBy: [{ active: 'desc' }, { createdAt: 'asc' }],
+      })
+      if (existing) {
+        await prisma.product.update({
+          where: { id: existing.id },
+          data: { active: true, sharedId, category: 'Salsas', unit: 'Bolsa' },
+        })
+      } else {
+        await prisma.product.create({
+          data: { name, category: 'Salsas', module, unit: 'Bolsa', minStock: 0, sharedId },
+        })
+      }
+    }
+  }
+
   // Carnes crudas nuevas de Bodega (sin equivalente en el restaurante).
   for (const name of ['Alitas', 'Lomo de Cerdo', 'Steak de Cerdo']) {
     const sharedId = `carne-cruda-${name.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/[^a-z0-9]+/g, '-')}`
