@@ -252,6 +252,9 @@ export const RETURNABLE_SHARED_IDS: string[] = [
   'carne-pork-belly-ahumado',
   'carne-pulled-pork-ahumado',
   'carne-puyaso-ahumado',
+  'carne-alitas-ahumadas',
+  'carne-lomo-de-cerdo-ahumado',
+  'carne-steak-cerdo-ahumado',
 ]
 
 // Cierre de las carnes que regresan: todo lo que sobra vuelve a Bodega, menos la merma que se bota.

@@ -1025,6 +1025,27 @@ async function main() {
     }
   }
 
+  // Carnes ahumadas nuevas: se crean en Bodega y en el restaurante con el mismo ID compartido.
+  for (const name of ['Alitas Ahumadas', 'Lomo de Cerdo Ahumado', 'Steak Cerdo Ahumado']) {
+    const sharedId = `carne-${name.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/[^a-z0-9]+/g, '-')}`
+    for (const module of ['CARNES_AHUMADAS', 'CARNES_PREPARADAS'] as const) {
+      const existing = await prisma.product.findFirst({
+        where: { module, name },
+        orderBy: [{ active: 'desc' }, { createdAt: 'asc' }],
+      })
+      if (existing) {
+        await prisma.product.update({
+          where: { id: existing.id },
+          data: { active: true, sharedId, category: 'Carnes Ahumadas', unit: 'LB' },
+        })
+      } else {
+        await prisma.product.create({
+          data: { name, category: 'Carnes Ahumadas', module, unit: 'LB', minStock: 0, sharedId },
+        })
+      }
+    }
+  }
+
   // Carnes para Servicio debe usar exactamente el catálogo de Carnes Ahumadas Bodega.
   const smokedWarehouseProducts = await prisma.product.findMany({
     where: { module: 'CARNES_AHUMADAS', active: true },
