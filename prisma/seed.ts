@@ -947,6 +947,7 @@ async function main() {
     'Regia lata', 'Ultra', 'Suprema', 'Pilsener', 'Pilsener lata',
     'Estrella Damm', 'Corona', 'Corona Zero', 'Modelo', 'Cadejo Negra',
     'Cadejo hija de pooh', 'Cadejo mera belga', 'Heineken 0', 'Stella Artois',
+    'Jugo de Limón',
   ]
 
   // Bodega keeps its own catalog. Restaurant-only beverages are hidden there,
@@ -1042,6 +1043,28 @@ async function main() {
       await prisma.product.create({
         data: { name, category: 'Materia Prima', module: 'MATERIA_PRIMA_SALSA', unit: 'Bolsa', minStock: 0, sharedId },
       })
+    }
+  }
+
+  // Bebida nueva: Jugo de Limón en Bodega y en el restaurante con el mismo ID compartido.
+  {
+    const name = 'Jugo de Limón'
+    const sharedId = 'bebida-jugo-de-limon'
+    for (const module of ['BEBIDAS_BODEGA', 'BEBIDAS_SERVICIO'] as const) {
+      const existing = await prisma.product.findFirst({
+        where: { module, name },
+        orderBy: [{ active: 'desc' }, { createdAt: 'asc' }],
+      })
+      if (existing) {
+        await prisma.product.update({
+          where: { id: existing.id },
+          data: { active: true, sharedId, category: 'Refrescos', unit: 'unidad' },
+        })
+      } else {
+        await prisma.product.create({
+          data: { name, category: 'Refrescos', module, unit: 'unidad', minStock: 0, sharedId },
+        })
+      }
     }
   }
 
