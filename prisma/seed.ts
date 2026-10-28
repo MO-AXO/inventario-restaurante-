@@ -880,7 +880,7 @@ async function main() {
 
   const vegetableLinks = [
     'Arugula', 'Camote', 'Cebolla Blanca', 'Cebolla Morada', 'Cebollines',
-    'Cilantro', 'Elote', 'Limon', 'Maracuya', 'Papa', 'Repollo Blanco',
+    'Cilantro', 'Limon', 'Maracuya', 'Papa', 'Repollo Blanco',
     'Repollo Morado', 'Zanahoria',
   ]
   for (const name of vegetableLinks) {
@@ -1022,6 +1022,98 @@ async function main() {
         where: { id: keeper.id },
         data: { name: canonicalName, sharedId },
       })
+    }
+  }
+
+  // Materia prima de salsa solo de Bodega (sin equivalente en el restaurante).
+  {
+    const name = 'Mostaza'
+    const sharedId = 'materia-mostaza'
+    const existing = await prisma.product.findFirst({
+      where: { module: 'MATERIA_PRIMA_SALSA', name },
+      orderBy: [{ active: 'desc' }, { createdAt: 'asc' }],
+    })
+    if (existing) {
+      await prisma.product.update({
+        where: { id: existing.id },
+        data: { active: true, sharedId, category: 'Materia Prima', unit: 'Bolsa' },
+      })
+    } else {
+      await prisma.product.create({
+        data: { name, category: 'Materia Prima', module: 'MATERIA_PRIMA_SALSA', unit: 'Bolsa', minStock: 0, sharedId },
+      })
+    }
+  }
+
+  // Verduras de Bodega: Remolacha se agrega y Elote se quita de Bodega
+  // (se conserva el historial desactivándolo; en el restaurante sigue existiendo).
+  {
+    const name = 'Remolacha'
+    const sharedId = 'verdura-remolacha'
+    const existing = await prisma.product.findFirst({
+      where: { module: 'VERDURAS', name },
+      orderBy: [{ active: 'desc' }, { createdAt: 'asc' }],
+    })
+    if (existing) {
+      await prisma.product.update({
+        where: { id: existing.id },
+        data: { active: true, sharedId, category: 'Verduras', unit: 'LB' },
+      })
+    } else {
+      await prisma.product.create({
+        data: { name, category: 'Verduras', module: 'VERDURAS', unit: 'LB', minStock: 0, sharedId },
+      })
+    }
+    await prisma.product.updateMany({
+      where: { module: 'VERDURAS', name: 'Elote', active: true },
+      data: { active: false },
+    })
+  }
+
+  // Desechables de Bodega: Bolsa de Arroba Transparente se agrega y Servilleta de Baño se quita de Bodega
+  // (se conserva el historial desactivándola; en el restaurante sigue existiendo).
+  {
+    const name = 'Bolsa de Arroba Transparente'
+    const sharedId = 'desechable-bolsa-de-arroba-transparente'
+    const existing = await prisma.product.findFirst({
+      where: { module: 'DESECHABLES_BODEGA', name },
+      orderBy: [{ active: 'desc' }, { createdAt: 'asc' }],
+    })
+    if (existing) {
+      await prisma.product.update({
+        where: { id: existing.id },
+        data: { active: true, sharedId, category: 'Bolsas', unit: 'Paquetes' },
+      })
+    } else {
+      await prisma.product.create({
+        data: { name, category: 'Bolsas', module: 'DESECHABLES_BODEGA', unit: 'Paquetes', minStock: 0, sharedId },
+      })
+    }
+    await prisma.product.updateMany({
+      where: { module: 'DESECHABLES_BODEGA', name: 'Servilleta de Baño', active: true },
+      data: { active: false },
+    })
+  }
+
+  // Aderezo nuevo: se crea en Bodega y en el restaurante con el mismo ID compartido.
+  {
+    const name = 'Aderezo Ranch'
+    const sharedId = 'salsa-aderezo-ranch'
+    for (const module of ['SALSAS_ADEREZOS_BODEGA', 'SALSAS_ADEREZOS_RESTAURANTE'] as const) {
+      const existing = await prisma.product.findFirst({
+        where: { module, name },
+        orderBy: [{ active: 'desc' }, { createdAt: 'asc' }],
+      })
+      if (existing) {
+        await prisma.product.update({
+          where: { id: existing.id },
+          data: { active: true, sharedId, category: 'Aderezos', unit: 'Bolsa' },
+        })
+      } else {
+        await prisma.product.create({
+          data: { name, category: 'Aderezos', module, unit: 'Bolsa', minStock: 0, sharedId },
+        })
+      }
     }
   }
 
@@ -1179,7 +1271,7 @@ async function main() {
     { restaurantModule: 'LACTEOS_RESTAURANTE' as Module, warehouseModule: 'LACTEOS_BODEGA' as Module, name: 'Queso Americano', sharedId: 'lacteo-queso-americano' },
     { restaurantModule: 'CONDIMENTOS_RESTAURANTE' as Module, warehouseModule: 'CONDIMENTOS_BODEGA' as Module, name: 'Sal', sharedId: 'condimento-sal' },
     { restaurantModule: 'SALSAS_ADEREZOS_RESTAURANTE' as Module, warehouseModule: 'SALSAS_ADEREZOS_BODEGA' as Module, name: 'Aderezo Blue Cheese', sharedId: 'salsa-aderezo-blue-cheese' },
-    { restaurantModule: 'DESECHABLES_BOLSAS_RESTAURANTE' as Module, warehouseModule: 'DESECHABLES_BODEGA' as Module, name: 'Servilleta de Baño', sharedId: 'desechable-servilleta-de-bano' },
+
     { restaurantModule: 'HARINAS_ACEITE_RESTAURANTE' as Module, warehouseModule: 'HARINAS_ACEITE_BODEGA' as Module, name: 'Coditos', sharedId: 'harina-coditos' },
     { restaurantModule: 'VERDURAS_RESTAURANTE' as Module, warehouseModule: 'VERDURAS' as Module, name: 'Cebolla Blanca', sharedId: 'verdura-cebolla-blanca' },
   ]
