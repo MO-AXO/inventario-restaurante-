@@ -3,7 +3,7 @@
 import { revalidatePath } from 'next/cache'
 import { prisma } from '@/lib/db'
 import { getSession } from '@/lib/auth'
-import { calcStatus } from '@/lib/utils'
+import { calcStatus, smokedCountsUnits } from '@/lib/utils'
 import { Module } from '@prisma/client'
 import { WEIGHT_MODULES, SMOKED_MODULES, BEVERAGE_SERVICE_MODULES, CARNES_SERVICIO_MODULES, STANDARD_RESTAURANT_MODULES, MIDDAY_COUNT_MODULES, BODEGA_STOCK_MODULES } from '@/lib/utils'
 
@@ -76,10 +76,13 @@ export async function saveInventoryRecord(
     const status = calcStatus(finalWeight, product.minStock)
     data = { ...data, units, initialWeight, waste1, finalWeight, currentStock: finalWeight, status }
   } else if (SMOKED_MODULES.includes(module)) {
-    const units = parseInt(formData.get('units') as string) || 0
-    const weightLb = parseFloat(formData.get('weightLb') as string) || 0
+    // Productos por unidad (Muslos, Tortitas, Texas Twinkies...): la cifra es "Unidades" y el peso se iguala a ella.
+    // Los que van en libras siguen guardando unidades y peso por separado.
+    const unitsTyped = parseInt(formData.get('units') as string) || 0
+    const byUnit = smokedCountsUnits(product.unit)
+    const weightLb = byUnit ? unitsTyped : parseFloat(formData.get('weightLb') as string) || 0
     const status = calcStatus(weightLb, product.minStock)
-    data = { ...data, units, weightLb, currentStock: weightLb, status }
+    data = { ...data, units: unitsTyped, weightLb, currentStock: weightLb, status }
   } else if (BEVERAGE_SERVICE_MODULES.includes(module)) {
     const initialStock = parseNullableNumber(formData.get('initialStock')) ?? 0
     const midStock = parseNullableNumber(formData.get('midStock'))

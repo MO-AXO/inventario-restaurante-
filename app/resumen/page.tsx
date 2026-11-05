@@ -2,7 +2,7 @@ export const dynamic = 'force-dynamic'
 
 import Navbar from '@/components/Navbar'
 import { prisma } from '@/lib/db'
-import { todayDate, MODULE_LABELS, SECTION_GROUPS, MODULE_ICONS, statusColor, statusBadge, calcStatus, availableStock, STANDARD_RESTAURANT_MODULES, CARNES_SERVICIO_MODULES, WEIGHT_MODULES, SMOKED_MODULES, BEVERAGE_SERVICE_MODULES, BODEGA_STOCK_MODULES } from '@/lib/utils'
+import { todayDate, MODULE_LABELS, SECTION_GROUPS, MODULE_ICONS, statusColor, statusBadge, calcStatus, availableStock, warehouseStock, smokedCountsUnits, STANDARD_RESTAURANT_MODULES, CARNES_SERVICIO_MODULES, WEIGHT_MODULES, SMOKED_MODULES, BEVERAGE_SERVICE_MODULES, BODEGA_STOCK_MODULES } from '@/lib/utils'
 import { Module, StockStatus } from '@prisma/client'
 
 type StockRecord = {
@@ -32,26 +32,26 @@ type ProductRow = {
   records: StockRecord[]
 }
 
-function effectiveStock(mod: Module, record: StockRecord | undefined): number | null {
+function effectiveStock(mod: Module, record: StockRecord | undefined, unit?: string): number | null {
   if (!record) return null
   if (CARNES_SERVICIO_MODULES.includes(mod) || BEVERAGE_SERVICE_MODULES.includes(mod) || STANDARD_RESTAURANT_MODULES.includes(mod)) return availableStock(mod, record)
   if (WEIGHT_MODULES.includes(mod)) return record.finalWeight
-  if (SMOKED_MODULES.includes(mod)) return record.weightLb
+  if (SMOKED_MODULES.includes(mod)) return warehouseStock(mod, record, unit)
   if (BEVERAGE_SERVICE_MODULES.includes(mod) || BODEGA_STOCK_MODULES.includes(mod)) return record.finalStock
   return record.currentStock
 }
 
 // Para el estado, compara inicial + recarga vs mínimo en módulos que aplica
-function stockForStatus(mod: Module, record: StockRecord): number | null {
+function stockForStatus(mod: Module, record: StockRecord, unit?: string): number | null {
   if (BODEGA_STOCK_MODULES.includes(mod))
     return (record.initialStock ?? 0) + (record.restock ?? 0)
-  return effectiveStock(mod, record)
+  return effectiveStock(mod, record, unit)
 }
 
 function liveStatus(p: ProductRow): StockStatus | null {
   const r = p.records[0]
   if (!r) return null
-  return calcStatus(stockForStatus(p.module, r), p.minStock)
+  return calcStatus(stockForStatus(p.module, r, p.unit), p.minStock)
 }
 
 function initialDisplay(mod: Module, record: StockRecord | undefined, unit: string): string {
@@ -79,6 +79,11 @@ function stockDisplay(product: { unit: string; module: Module }, record: StockRe
   if (WEIGHT_MODULES.includes(mod))
     return record.finalWeight !== null ? `${record.finalWeight.toFixed(1)} ${product.unit}` : '—'
   if (SMOKED_MODULES.includes(mod)) {
+    // Productos por unidad: la cifra que cuenta son las unidades. En libras, el peso.
+    if (smokedCountsUnits(product.unit)) {
+      const n = warehouseStock(mod, record, product.unit)
+      return `${Number.isInteger(n) ? n : n.toFixed(1)} u`
+    }
     const u = record.units !== null ? `${record.units} u` : '—'
     const w = record.weightLb !== null ? `${record.weightLb.toFixed(1)} LB` : '—'
     return `${u} / ${w}`

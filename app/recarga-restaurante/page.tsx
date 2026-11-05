@@ -74,7 +74,7 @@ export default async function RecargaRestorantePage() {
         ? readMidCount(p.module, p.records[0])
         : null,
       linked: !!warehouse && warehouse.unit.trim().toLowerCase() === p.unit.trim().toLowerCase(),
-      warehouseAvailable: warehouse ? warehouseStock(warehouse.module, warehouse.records[0] ?? null) : null,
+      warehouseAvailable: warehouse ? warehouseStock(warehouse.module, warehouse.records[0] ?? null, warehouse.unit) : null,
       movedMorning: movedToday[p.id]?.MANANA ?? 0,
       movedNoon: movedToday[p.id]?.MEDIODIA ?? 0,
     }
@@ -94,7 +94,7 @@ export default async function RecargaRestorantePage() {
         finalToday: rec && rec.finalWeight !== null && !(rec.finalWeight === 0 && (rec.initialWeight ?? 0) > 0 && !rec.waste1) ? rec.finalWeight : null,
         returnedToday: rec?.returnedQty ?? 0,
         wasteToday: rec?.wasteQty ?? 0,
-        warehouseAvailable: warehouse ? warehouseStock(warehouse.module, warehouse.records[0] ?? null) : null,
+        warehouseAvailable: warehouse ? warehouseStock(warehouse.module, warehouse.records[0] ?? null, warehouse.unit) : null,
         linked: !!warehouse && warehouse.unit.trim().toLowerCase() === p.unit.trim().toLowerCase(),
       }
     })

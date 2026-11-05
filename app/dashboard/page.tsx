@@ -17,6 +17,7 @@ import {
   BEVERAGE_SERVICE_MODULES,
   BODEGA_STOCK_MODULES,
   availableStock,
+  warehouseStock,
   STANDARD_RESTAURANT_MODULES,
 } from '@/lib/utils'
 import { Module, StockStatus } from '@prisma/client'
@@ -60,18 +61,18 @@ export default async function DashboardPage() {
   const isClosed = !!dayClose
 
   // Compute status live from actual stock values (not stored DB status)
-  function effectiveStock(mod: Module, r: typeof products[0]['records'][0] | undefined): number | null {
+  function effectiveStock(mod: Module, r: typeof products[0]['records'][0] | undefined, unit?: string): number | null {
     if (!r) return null
     if (CARNES_SERVICIO_MODULES.includes(mod) || BEVERAGE_SERVICE_MODULES.includes(mod) || STANDARD_RESTAURANT_MODULES.includes(mod)) return availableStock(mod, r)
     if (WEIGHT_MODULES.includes(mod)) return r.finalWeight
-    if (SMOKED_MODULES.includes(mod)) return r.weightLb
+    if (SMOKED_MODULES.includes(mod)) return warehouseStock(mod, r, unit)
     if (BODEGA_STOCK_MODULES.includes(mod)) return r.finalStock
     return r.currentStock
   }
   function liveStatus(p: typeof products[0]): StockStatus | null {
     const r = p.records[0]
     if (!r) return null
-    return calcStatus(effectiveStock(p.module as Module, r), p.minStock)
+    return calcStatus(effectiveStock(p.module as Module, r, p.unit), p.minStock)
   }
 
   const criticalCount = products.filter((p) => liveStatus(p) === 'CRITICO').length
@@ -230,7 +231,7 @@ export default async function DashboardPage() {
                     .map((p) => {
                       const record = p.records[0]
                       const status = liveStatus(p) as StockStatus
-                      const stock = effectiveStock(p.module as Module, record)
+                      const stock = effectiveStock(p.module as Module, record, p.unit)
                       return (
                         <tr key={p.id} className="border-b border-gray-100 last:border-0">
                           <td className="px-4 py-3 font-medium">{p.name}</td>

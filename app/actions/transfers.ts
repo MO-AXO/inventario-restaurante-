@@ -20,6 +20,7 @@ import {
   availableStock,
   carriedStock,
   warehouseStock,
+  smokedStockFields,
   readMidCount,
   round3,
 } from '@/lib/utils'
@@ -167,10 +168,17 @@ export async function registerTransfer(shift: TransferShift, lines: TransferLine
             if (!isCarnes) {
               fields.consumption = final === null ? null : initial + morning + noon - final
             }
-            // Después de recargar, un final escrito antes ya no vale en los módulos estándar: se vuelve a contar al cerrar.
-            if (isStandard) {
+            // Después de recargar, un final escrito antes ya no vale: lo llevado lo cambia y se vuelve a contar al cerrar.
+            // En carnes aplica igual. Si ya se había cerrado la noche, el cierre también se reabre.
+            if (isStandard || isBeverage) {
               fields.finalStock = null
               fields.consumption = null
+            }
+            if (isCarnes && line.quantity > 0 && final !== null) {
+              fields.finalWeight = null
+              fields.returnedQty = null
+              fields.wasteQty = null
+              fields.wasteReason = null
             }
             fields.currentStock = availableStock(mod, {
               currentStock: null,
@@ -179,6 +187,8 @@ export async function registerTransfer(shift: TransferShift, lines: TransferLine
               restock: noon,
               restockMorning: morning,
               finalWeight: fields.finalWeight ?? null,
+              returnedQty: fields.returnedQty ?? null,
+              wasteQty: fields.wasteQty ?? null,
               initialStock: fields.initialStock ?? null,
               midStock: fields.midStock ?? null,
               finalStock: fields.finalStock ?? null,
@@ -207,7 +217,7 @@ export async function registerTransfer(shift: TransferShift, lines: TransferLine
               where: { productId: warehouse.id },
               orderBy: { date: 'desc' },
             })
-            const previous = warehouseStock(warehouse.module, wLatest)
+            const previous = warehouseStock(warehouse.module, wLatest, warehouse.unit)
             deducted = Math.min(line.quantity, previous)
             warehouseLeft = previous - deducted
             const wStatus = calcStatus(warehouseLeft, warehouse.minStock)
@@ -230,8 +240,7 @@ export async function registerTransfer(shift: TransferShift, lines: TransferLine
               wData.restock = restockW
               wData.finalStock = warehouseLeft
             } else if (SMOKED_MODULES.includes(warehouse.module)) {
-              wData.weightLb = warehouseLeft
-              wData.units = wLatest?.units ?? null
+              Object.assign(wData, smokedStockFields(warehouse.unit, warehouseLeft, wLatest?.units))
             }
             await tx.dailyRecord.upsert({
               where: { productId_date: { productId: warehouse.id, date } },
@@ -394,7 +403,7 @@ export async function undoTransfer(batchId: string): Promise<UndoResult> {
             } else {
               const wToday = await tx.dailyRecord.findUnique({ where: { productId_date: { productId: warehouse.id, date } } })
               const wLatest = wToday ?? await tx.dailyRecord.findFirst({ where: { productId: warehouse.id }, orderBy: { date: 'desc' } })
-              const previous = warehouseStock(warehouse.module, wLatest)
+              const previous = warehouseStock(warehouse.module, wLatest, warehouse.unit)
               const next = round3(previous + deducted)
               const wData: Prisma.DailyRecordUncheckedCreateInput = {
                 productId: warehouse.id,
@@ -409,8 +418,7 @@ export async function undoTransfer(batchId: string): Promise<UndoResult> {
                 wData.restock = wToday?.restock ?? 0
                 wData.finalStock = next
               } else if (SMOKED_MODULES.includes(warehouse.module)) {
-                wData.weightLb = next
-                wData.units = wLatest?.units ?? null
+                Object.assign(wData, smokedStockFields(warehouse.unit, next, wLatest?.units))
               }
               await tx.dailyRecord.upsert({
                 where: { productId_date: { productId: warehouse.id, date } },

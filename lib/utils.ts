@@ -181,14 +181,32 @@ export const WAREHOUSE_FOR_RESTAURANT: Partial<Record<Module, Module>> = {
   CARNES_PREPARADAS:              'CARNES_AHUMADAS',
 }
 
+// En Carnes Ahumadas, lo que no se mide en libras (Muslos, Tortitas, Texas Twinkies, Tocino, Salchichas)
+// se cuenta por unidad. Para esos productos la cifra verdadera es "Unidades", no "Peso (LB)".
+export function smokedCountsUnits(unit: string | null | undefined): boolean {
+  return (unit ?? '').trim().toLowerCase() !== 'lb'
+}
+
+// Campos de Bodega (carnes ahumadas) que hay que escribir para dejar el stock en `value`.
+// Para productos por unidad se guarda en ambos campos, así el dashboard y el resto de pantallas coinciden.
+export function smokedStockFields(unit: string | null | undefined, value: number, latestUnits?: number | null) {
+  if (smokedCountsUnits(unit)) return { weightLb: value, units: Math.round(value) }
+  return { weightLb: value, units: latestUnits ?? null }
+}
+
 // Stock actual de un producto de Bodega; cada módulo lo guarda en un campo distinto.
 export function warehouseStock(
   mod: Module,
-  r: { currentStock: number | null; finalStock: number | null; weightLb: number | null } | null | undefined
+  r: { currentStock: number | null; finalStock: number | null; weightLb: number | null; units?: number | null } | null | undefined,
+  unit?: string | null
 ): number {
   if (!r) return 0
   if (BODEGA_STOCK_MODULES.includes(mod)) return r.finalStock ?? r.currentStock ?? 0
-  if (SMOKED_MODULES.includes(mod)) return r.weightLb ?? r.currentStock ?? 0
+  if (SMOKED_MODULES.includes(mod)) {
+    // Productos por unidad: manda "Unidades". Si solo se anotó el peso, se usa como respaldo.
+    if (unit !== undefined && smokedCountsUnits(unit)) return r.units ?? r.weightLb ?? r.currentStock ?? 0
+    return r.weightLb ?? r.currentStock ?? 0
+  }
   return r.currentStock ?? 0
 }
 

@@ -15,6 +15,7 @@ import {
   closingBalance,
   round3,
   warehouseStock,
+  smokedStockFields,
 } from '@/lib/utils'
 
 // El peso final lo escribe el equipo en la tarjeta de la carne; aquí solo se anota la merma.
@@ -162,7 +163,7 @@ export async function registerClosing(lines: ClosingLine[]): Promise<ClosingResu
                 where: { productId: warehouse.id },
                 orderBy: { date: 'desc' },
               })
-              const previous = warehouseStock(warehouse.module, wLatest)
+              const previous = warehouseStock(warehouse.module, wLatest, warehouse.unit)
               warehouseNow = Math.max(0, round3(previous + added))
               const wData: Prisma.DailyRecordUncheckedCreateInput = {
                 productId: warehouse.id,
@@ -170,8 +171,7 @@ export async function registerClosing(lines: ClosingLine[]): Promise<ClosingResu
                 userId: session.userId,
                 status: calcStatus(warehouseNow, warehouse.minStock),
                 currentStock: warehouseNow,
-                weightLb: warehouseNow,
-                units: wLatest?.units ?? null,
+                ...smokedStockFields(warehouse.unit, warehouseNow, wLatest?.units),
                 notes: wToday?.notes ?? null,
               }
               await tx.dailyRecord.upsert({

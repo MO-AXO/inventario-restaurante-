@@ -3,7 +3,7 @@
 import { useActionState, useState } from 'react'
 import { Module } from '@prisma/client'
 import Link from 'next/link'
-import { CARNES_SERVICIO_MODULES, MIDDAY_COUNT_MODULES, calcStatus, availableStock } from '@/lib/utils'
+import { CARNES_SERVICIO_MODULES, MIDDAY_COUNT_MODULES, calcStatus, availableStock, warehouseStock, smokedCountsUnits } from '@/lib/utils'
 
 type Product = {
   id: string
@@ -53,7 +53,8 @@ type Props = {
 function effectiveStock(
   formType: Props['formType'],
   existing: ExistingRecord | null,
-  module: Module
+  module: Module,
+  unit?: string
 ): number | null {
   if (!existing) return null
   switch (formType) {
@@ -64,7 +65,7 @@ function effectiveStock(
     case 'weight':
       return existing.finalWeight
     case 'smoked':
-      return existing.weightLb
+      return warehouseStock(module, existing, unit)
     case 'bodega_stock':
       return existing.finalStock
     default: // simple
@@ -126,7 +127,7 @@ export default function InventoryForm({ product, today, formType, existing, isEx
     (formType === 'beverage_service' && (existing.initialStock ?? 0) > 0 && !existing.midStock && existing.finalStock === 0)
   )
   // Disponible real: último conteo + las recargas hechas después (las registra la pantalla de traslado).
-  const stock = effectiveStock(formType, existing, product.module)
+  const stock = effectiveStock(formType, existing, product.module, product.unit)
   const morningTransfer = existing?.restockMorning ?? 0
   const noonTransfer = existing?.restock ?? 0
   const liveStatus = existing ? calcStatus(stock, product.minStock) : undefined
@@ -161,7 +162,9 @@ export default function InventoryForm({ product, today, formType, existing, isEx
             <div className="text-right">
               <div className="text-sm text-gray-600 font-medium">
                 {formType === 'smoked'
-                  ? `${existing.units ?? '—'} u / ${existing.weightLb ?? '—'} LB`
+                  ? smokedCountsUnits(product.unit)
+                    ? `${stock ?? '—'} ${product.unit}`
+                    : `${existing.units ?? '—'} u / ${existing.weightLb ?? '—'} LB`
                   : formType === 'beverage_service'
                   ? `Disponible: ${stock ?? '—'} ${product.unit}`
                   : formType === 'weight'
@@ -341,7 +344,16 @@ export default function InventoryForm({ product, today, formType, existing, isEx
                 </div>
               )}
 
-              {formType === 'smoked' && (
+              {formType === 'smoked' && smokedCountsUnits(product.unit) && (
+                // Producto por unidad: una sola cifra, las unidades. El peso se guarda igual para que todo coincida.
+                <div>
+                  <label className={labelClass}>Unidades ({product.unit})</label>
+                  <input type="number" name="units" min="0" step="1" inputMode="numeric"
+                    defaultValue={stock ?? ''} placeholder={`Mínimo: ${product.minStock}`} className={inputClass} />
+                </div>
+              )}
+
+              {formType === 'smoked' && !smokedCountsUnits(product.unit) && (
                 <div className="grid grid-cols-2 gap-3">
                   <div>
                     <label className={labelClass}>Unidades</label>

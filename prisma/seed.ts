@@ -1180,6 +1180,16 @@ async function main() {
     }
   }
 
+  // Muslos de Pollo Ahumado se cuenta por unidad, igual que Tortitas y Texas Twinkies.
+  await prisma.product.updateMany({
+    where: {
+      name: 'Muslos de Pollo Ahumado',
+      module: { in: ['CARNES_AHUMADAS', 'CARNES_PREPARADAS'] },
+      unit: { not: 'Unidad' },
+    },
+    data: { unit: 'Unidad' },
+  })
+
   // Carnes ahumadas nuevas: se crean en Bodega y en el restaurante con el mismo ID compartido.
   for (const name of ['Alitas Ahumadas', 'Lomo de Cerdo Ahumado', 'Steak Cerdo Ahumado']) {
     const sharedId = `carne-${name.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/[^a-z0-9]+/g, '-')}`
