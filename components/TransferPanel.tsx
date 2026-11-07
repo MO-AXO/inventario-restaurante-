@@ -15,6 +15,8 @@ type Product = {
   available: number | null
   warehouseAvailable: number | null
   linked: boolean
+  asksUnits: boolean
+  warehouseUnits: number | null
   midCountToday: number | null
   movedMorning: number
   movedNoon: number
@@ -92,6 +94,7 @@ export default function TransferPanel({ products, batches, closingRows, doneToda
   const [query, setQuery] = useState('')
   const [quantities, setQuantities] = useState<Record<string, string>>({})
   const [midCounts, setMidCounts] = useState<Record<string, string>>({})
+  const [unitsMoved, setUnitsMoved] = useState<Record<string, string>>({})
   const [result, setResult] = useState<TransferResult | null>(null)
   const [pending, startTransition] = useTransition()
 
@@ -149,6 +152,9 @@ export default function TransferPanel({ products, batches, closingRows, doneToda
 
   const missing = missingCounts()
 
+  // Costilla y Pulled Pork: si se llevan libras, hay que decir también cuántas unidades.
+  const missingUnits = products.filter((p) => p.asksUnits && Number(quantities[p.id]) > 0 && (unitsMoved[p.id] ?? '').trim() === '')
+
   function undo(batchId: string) {
     startTransition(async () => {
       const response = await undoTransfer(batchId)
@@ -169,6 +175,7 @@ export default function TransferPanel({ products, batches, closingRows, doneToda
         productId: p.id,
         quantity: Number(quantities[p.id]) > 0 ? Number(quantities[p.id]) : 0,
         midCount: needsCount(p) && midValue(p).trim() !== '' ? Number(midValue(p)) : null,
+        units: p.asksUnits && (unitsMoved[p.id] ?? '').trim() !== '' ? Number(unitsMoved[p.id]) : null,
       }))
     startTransition(async () => {
       const response = await registerTransfer(shift, lines)
@@ -176,6 +183,7 @@ export default function TransferPanel({ products, batches, closingRows, doneToda
       if (response.ok) {
         setQuantities({})
         setMidCounts({})
+        setUnitsMoved({})
         window.scrollTo({ top: 0, behavior: 'smooth' })
       }
     })
@@ -493,13 +501,13 @@ export default function TransferPanel({ products, batches, closingRows, doneToda
                       Restaurante: <strong>{fmt(p.available)} {p.unit}</strong>
                       {askCount && p.midCountToday !== null && <> · Final mediodía guardado: <strong>{fmt(p.midCountToday)} {p.unit}</strong></>}
                       {p.linked
-                        ? <> · Bodega: <strong>{fmt(p.warehouseAvailable)} {p.unit}</strong></>
+                        ? <> · Bodega: <strong>{fmt(p.warehouseAvailable)} {p.unit}</strong>{p.asksUnits && p.warehouseUnits !== null && <> / <strong>{p.warehouseUnits} u</strong></>}</>
                         : <span className="text-amber-700"> · sin equivalente en Bodega</span>}
                     </div>
                   </div>
                   <span className="shrink-0 rounded-full bg-orange-50 text-orange-700 px-2.5 py-1 text-xs font-semibold">{p.unit}</span>
                 </div>
-                <div className={`grid gap-2 ${askCount ? 'grid-cols-2' : 'grid-cols-1'}`}>
+                <div className={`grid gap-2 ${askCount || (p.asksUnits && hasQty) ? 'grid-cols-2' : 'grid-cols-1'}`}>
                   {askCount && (
                     <label className="block">
                       <span className="block text-[11px] font-semibold text-amber-800 mb-1">1. Cuenta lo que quedó <span className="font-normal text-amber-700">(final de mediodía)</span></span>
@@ -523,6 +531,20 @@ export default function TransferPanel({ products, batches, closingRows, doneToda
                       <span className="border border-l-0 border-gray-300 rounded-r-xl px-3 py-2.5 text-sm text-gray-500 bg-gray-50">{p.unit}</span>
                     </div>
                   </label>
+                  {p.asksUnits && hasQty && (
+                    <label className="block">
+                      <span className="block text-[11px] font-semibold text-gray-600 mb-1">Cuántas unidades llevas</span>
+                      <div className="flex items-center">
+                        <input
+                          type="number" min="0" step="1" inputMode="numeric" placeholder="0"
+                          value={unitsMoved[p.id] ?? ''}
+                          onChange={(e) => setUnitsMoved((prev) => ({ ...prev, [p.id]: e.target.value }))}
+                          className={`${inputBase} rounded-r-none font-semibold ${(unitsMoved[p.id] ?? '').trim() === '' ? 'border-amber-400 bg-amber-50' : ''}`}
+                        />
+                        <span className="border border-l-0 border-gray-300 rounded-r-xl px-3 py-2.5 text-sm text-gray-500 bg-gray-50">u</span>
+                      </div>
+                    </label>
+                  )}
                 </div>
                 {hasQty && alreadyMoved > 0 && (
                   <p className="text-[11px] text-amber-800 bg-amber-50 border border-amber-200 rounded-lg px-2 py-1 mt-1.5">
@@ -609,7 +631,7 @@ export default function TransferPanel({ products, batches, closingRows, doneToda
               {mode === 'CIERRE'
                 ? closingTouched.map((r) => <li key={r.id}>{r.name}: regresa {fmt(closingState(r).returned)} {r.unit}</li>)
                 : products.filter(hasData).map((p) => (
-                    <li key={p.id}>{p.name}: {Number(quantities[p.id]) > 0 ? `+${fmt(Number(quantities[p.id]))} ${p.unit}` : `conteo ${fmt(Number(midValue(p)))} ${p.unit}`}</li>
+                    <li key={p.id}>{p.name}: {Number(quantities[p.id]) > 0 ? `+${fmt(Number(quantities[p.id]))} ${p.unit}${p.asksUnits && (unitsMoved[p.id] ?? '').trim() !== '' ? ` y ${unitsMoved[p.id]} u` : ''}` : `conteo ${fmt(Number(midValue(p)))} ${p.unit}`}</li>
                   ))}
             </ul>
             <div className="grid grid-cols-2 gap-2 mt-4">
@@ -631,6 +653,11 @@ export default function TransferPanel({ products, batches, closingRows, doneToda
 
       <div className="fixed bottom-0 inset-x-0 z-40 bg-white/95 backdrop-blur border-t border-gray-200 p-3">
         <div className="max-w-4xl mx-auto">
+          {mode !== 'CIERRE' && missingUnits.length > 0 && (
+            <p className="text-[11px] text-amber-800 mb-1.5 text-center">
+              Escribe cuántas unidades llevas de: {missingUnits.map((m) => m.name).join(', ')}
+            </p>
+          )}
           {mode !== 'CIERRE' && missing.length > 0 && (
             <p className="text-[11px] text-amber-800 mb-1.5 text-center">
               Falta contar lo que quedó en {missing.length} producto{missing.length === 1 ? '' : 's'}: {missing.slice(0, 3).map((m) => m.name).join(', ')}{missing.length > 3 ? '…' : ''}
@@ -649,7 +676,7 @@ export default function TransferPanel({ products, batches, closingRows, doneToda
           <button
             type="button"
             onClick={() => setConfirming(true)}
-            disabled={pending || filledCount === 0 || missing.length > 0}
+            disabled={pending || filledCount === 0 || missing.length > 0 || missingUnits.length > 0}
             className={`w-full rounded-xl ${SHIFT_STYLE[mode].button} disabled:opacity-40 disabled:cursor-not-allowed text-white font-bold py-3.5 transition`}
           >
             {pending ? 'Registrando...' : filledCount === 0 ? (shift === 'MEDIODIA' ? 'Escribe conteos o cantidades para confirmar' : 'Escribe cantidades para confirmar') : `Confirmar traslado de ${shift === 'MANANA' ? 'mañana' : 'mediodía'} (${filledCount})`}

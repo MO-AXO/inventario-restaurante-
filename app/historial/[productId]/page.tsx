@@ -13,6 +13,7 @@ import {
   SMOKED_MODULES,
   BEVERAGE_SERVICE_MODULES,
   STANDARD_RESTAURANT_MODULES,
+  smokedMode,
 } from '@/lib/utils'
 import { Module, StockStatus } from '@prisma/client'
 
@@ -34,6 +35,7 @@ export default async function HistorialPage({ params }: Props) {
   const isCarnesServicio = CARNES_SERVICIO_MODULES.includes(mod)
   const isWeight = WEIGHT_MODULES.includes(mod)
   const isSmoked = SMOKED_MODULES.includes(mod)
+  const smokedLbOnly = isSmoked && smokedMode(product.unit, product.sharedId) === 'lb'
   const isBeverage = BEVERAGE_SERVICE_MODULES.includes(mod) || STANDARD_RESTAURANT_MODULES.includes(mod)
 
   return (
@@ -82,7 +84,7 @@ export default async function HistorialPage({ params }: Props) {
                   )}
                   {isSmoked && (
                     <>
-                      <th className="text-right px-3 py-3 font-semibold">Unidades</th>
+                      {!smokedLbOnly && <th className="text-right px-3 py-3 font-semibold">Unidades</th>}
                       <th className="text-right px-3 py-3 font-semibold">LB</th>
                     </>
                   )}
@@ -147,7 +149,7 @@ export default async function HistorialPage({ params }: Props) {
                     )}
                     {isSmoked && (
                       <>
-                        <td className="px-3 py-3 text-right">{r.units ?? '—'}</td>
+                        {!smokedLbOnly && <td className="px-3 py-3 text-right">{r.units ?? '—'}</td>}
                         <td className="px-3 py-3 text-right font-semibold">
                           {r.weightLb?.toFixed(1) ?? '—'}
                         </td>

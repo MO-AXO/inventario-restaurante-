@@ -3,7 +3,7 @@
 import { useActionState, useState } from 'react'
 import { Module } from '@prisma/client'
 import Link from 'next/link'
-import { CARNES_SERVICIO_MODULES, MIDDAY_COUNT_MODULES, calcStatus, availableStock, warehouseStock, smokedCountsUnits } from '@/lib/utils'
+import { CARNES_SERVICIO_MODULES, MIDDAY_COUNT_MODULES, calcStatus, availableStock, warehouseStock, smokedMode } from '@/lib/utils'
 
 type Product = {
   id: string
@@ -162,8 +162,10 @@ export default function InventoryForm({ product, today, formType, existing, isEx
             <div className="text-right">
               <div className="text-sm text-gray-600 font-medium">
                 {formType === 'smoked'
-                  ? smokedCountsUnits(product.unit)
+                  ? smokedMode(product.unit, product.sharedId) === 'units'
                     ? `${stock ?? '—'} ${product.unit}`
+                    : smokedMode(product.unit, product.sharedId) === 'lb'
+                    ? `${existing.weightLb ?? '—'} LB`
                     : `${existing.units ?? '—'} u / ${existing.weightLb ?? '—'} LB`
                   : formType === 'beverage_service'
                   ? `Disponible: ${stock ?? '—'} ${product.unit}`
@@ -344,7 +346,7 @@ export default function InventoryForm({ product, today, formType, existing, isEx
                 </div>
               )}
 
-              {formType === 'smoked' && smokedCountsUnits(product.unit) && (
+              {formType === 'smoked' && smokedMode(product.unit, product.sharedId) === 'units' && (
                 // Producto por unidad: una sola cifra, las unidades. El peso se guarda igual para que todo coincida.
                 <div>
                   <label className={labelClass}>Unidades ({product.unit})</label>
@@ -353,7 +355,15 @@ export default function InventoryForm({ product, today, formType, existing, isEx
                 </div>
               )}
 
-              {formType === 'smoked' && !smokedCountsUnits(product.unit) && (
+              {formType === 'smoked' && smokedMode(product.unit, product.sharedId) === 'lb' && (
+                <div>
+                  <label className={labelClass}>Peso (LB)</label>
+                  <input type="number" name="weightLb" step="0.01" min="0" inputMode="decimal"
+                    defaultValue={existing?.weightLb ?? ''} className={inputClass} />
+                </div>
+              )}
+
+              {formType === 'smoked' && (smokedMode(product.unit, product.sharedId) === 'both' || smokedMode(product.unit, product.sharedId) === 'other') && (
                 <div className="grid grid-cols-2 gap-3">
                   <div>
                     <label className={labelClass}>Unidades</label>

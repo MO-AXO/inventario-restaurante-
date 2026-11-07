@@ -187,11 +187,49 @@ export function smokedCountsUnits(unit: string | null | undefined): boolean {
   return (unit ?? '').trim().toLowerCase() !== 'lb'
 }
 
+// Carnes ahumadas en libras que además llevan un conteo de unidades (piezas) que se mueve en proporción al peso.
+export const SMOKED_LB_AND_UNITS_SHARED_IDS: string[] = [
+  'carne-costilla-de-cerdo-ahumada',
+  'carne-pulled-pork-ahumado',
+]
+
+// Carnes ahumadas que se registran solo por libras (sin unidades).
+export const SMOKED_LB_ONLY_SHARED_IDS: string[] = ['carne-pork-belly-ahumado']
+
+// Cómo se registra un producto de Carnes Ahumadas:
+// 'units' = solo unidades, 'lb' = solo libras, 'both' = libras y unidades, 'other' = libras con unidades sueltas (sin tocar).
+export type SmokedMode = 'units' | 'lb' | 'both' | 'other'
+
+export function smokedMode(unit: string | null | undefined, sharedId: string | null | undefined): SmokedMode {
+  if (smokedCountsUnits(unit)) return 'units'
+  if (sharedId && SMOKED_LB_ONLY_SHARED_IDS.includes(sharedId)) return 'lb'
+  if (sharedId && SMOKED_LB_AND_UNITS_SHARED_IDS.includes(sharedId)) return 'both'
+  return 'other'
+}
+
 // Campos de Bodega (carnes ahumadas) que hay que escribir para dejar el stock en `value`.
 // Para productos por unidad se guarda en ambos campos, así el dashboard y el resto de pantallas coinciden.
-export function smokedStockFields(unit: string | null | undefined, value: number, latestUnits?: number | null) {
-  if (smokedCountsUnits(unit)) return { weightLb: value, units: Math.round(value) }
-  return { weightLb: value, units: latestUnits ?? null }
+// En 'both', si se conoce la cifra exacta de unidades (`unitsOverride`) se usa; si no, se estiman en proporción al peso
+// (se corrigen al contar de verdad).
+export function smokedStockFields(
+  unit: string | null | undefined,
+  value: number,
+  latest?: { weightLb: number | null; units: number | null; currentStock?: number | null } | null,
+  sharedId?: string | null,
+  unitsOverride?: number | null
+) {
+  const mode = smokedMode(unit, sharedId)
+  if (mode === 'units') return { weightLb: value, units: Math.round(value) }
+  if (mode === 'lb') return { weightLb: value, units: null }
+  if (mode === 'both' && unitsOverride !== undefined && unitsOverride !== null) {
+    return { weightLb: value, units: Math.max(0, Math.round(unitsOverride)) }
+  }
+  const latestUnits = latest?.units ?? null
+  if (mode === 'both' && latestUnits !== null) {
+    const previousLb = latest?.weightLb ?? latest?.currentStock ?? 0
+    if (previousLb > 0) return { weightLb: value, units: Math.max(0, Math.round((latestUnits * value) / previousLb)) }
+  }
+  return { weightLb: value, units: latestUnits }
 }
 
 // Stock actual de un producto de Bodega; cada módulo lo guarda en un campo distinto.

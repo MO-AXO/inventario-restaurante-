@@ -17,6 +17,8 @@ import {
   availableStock,
   warehouseStock,
   readMidCount,
+  smokedMode,
+  SMOKED_MODULES,
 } from '@/lib/utils'
 
 // A partir de esta hora (Costa Rica) se sugiere el turno de mediodía en lugar del de mañana.
@@ -75,6 +77,9 @@ export default async function RecargaRestorantePage() {
         : null,
       linked: !!warehouse && warehouse.unit.trim().toLowerCase() === p.unit.trim().toLowerCase(),
       warehouseAvailable: warehouse ? warehouseStock(warehouse.module, warehouse.records[0] ?? null, warehouse.unit) : null,
+      // Bodega lleva estas carnes en libras y unidades: al trasladar se escriben las dos.
+      asksUnits: !!warehouse && SMOKED_MODULES.includes(warehouse.module) && smokedMode(warehouse.unit, warehouse.sharedId) === 'both',
+      warehouseUnits: warehouse ? warehouse.records[0]?.units ?? null : null,
       movedMorning: movedToday[p.id]?.MANANA ?? 0,
       movedNoon: movedToday[p.id]?.MEDIODIA ?? 0,
     }

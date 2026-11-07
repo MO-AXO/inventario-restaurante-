@@ -21,6 +21,7 @@ import {
   carriedStock,
   warehouseStock,
   smokedStockFields,
+  smokedMode,
   readMidCount,
   round3,
 } from '@/lib/utils'
@@ -31,6 +32,8 @@ export type TransferLine = {
   productId: string
   quantity: number
   midCount: number | null
+  // Piezas que se llevan; solo aplica a carnes ahumadas que Bodega controla en libras y unidades.
+  units?: number | null
 }
 
 export type TransferResult =
@@ -97,6 +100,25 @@ export async function registerTransfer(shift: TransferShift, lines: TransferLine
       where: { active: true, module: { in: warehouseModules }, sharedId: { in: sharedIds } },
     })
     const warehouseBySharedId = new Map(warehouseProducts.map((w) => [`${w.module}:${w.sharedId}`, w]))
+
+    // Carnes que Bodega lleva en libras y unidades: hay que decir cuántas piezas se llevan, no se adivina.
+    const takesUnits = (p: { module: Module; sharedId: string | null; unit: string }) => {
+      const wm = WAREHOUSE_FOR_RESTAURANT[p.module]
+      const w = wm && p.sharedId ? warehouseBySharedId.get(`${wm}:${p.sharedId}`) : null
+      return !!w && SMOKED_MODULES.includes(w.module) && smokedMode(w.unit, w.sharedId) === 'both' && w.unit.trim().toLowerCase() === p.unit.trim().toLowerCase()
+    }
+    const missingUnits = valid
+      .filter((l) => l.quantity > 0)
+      .map((l) => byId.get(l.productId))
+      .filter((p): p is NonNullable<typeof p> => !!p && takesUnits(p))
+      .filter((p) => {
+        const l = valid.find((x) => x.productId === p.id)
+        return !l || l.units === null || l.units === undefined || !Number.isFinite(l.units) || l.units < 0
+      })
+      .map((p) => p.name)
+    if (missingUnits.length > 0) {
+      return { ok: false, error: `Escribe cuántas unidades llevas de: ${missingUnits.join(', ')}.` }
+    }
 
     const batchId = randomUUID()
     const warnings: string[] = []
@@ -209,6 +231,7 @@ export async function registerTransfer(shift: TransferShift, lines: TransferLine
           // Descuento en Bodega por ID compartido, sin bajar de 0.
           let deducted = 0
           let warehouseLeft = 0
+          let unitsDeducted: number | null = null
           if (line.quantity > 0 && warehouse && unitsMatch) {
             const wToday = await tx.dailyRecord.findUnique({
               where: { productId_date: { productId: warehouse.id, date } },
@@ -220,6 +243,12 @@ export async function registerTransfer(shift: TransferShift, lines: TransferLine
             const previous = warehouseStock(warehouse.module, wLatest, warehouse.unit)
             deducted = Math.min(line.quantity, previous)
             warehouseLeft = previous - deducted
+            // Libras y unidades exactas: las piezas que Bodega tiene bajan lo que se llevó, sin pasar de 0.
+            const exactUnits = takesUnits(product) && line.units !== null && line.units !== undefined
+            const previousUnits = wLatest?.units ?? 0
+            const unitsMoved = exactUnits ? Math.round(line.units as number) : 0
+            unitsDeducted = exactUnits ? Math.min(unitsMoved, previousUnits) : null
+            const unitsLeft = exactUnits ? previousUnits - (unitsDeducted as number) : null
             const wStatus = calcStatus(warehouseLeft, warehouse.minStock)
 
             const wData: Prisma.DailyRecordUncheckedCreateInput = {
@@ -240,7 +269,7 @@ export async function registerTransfer(shift: TransferShift, lines: TransferLine
               wData.restock = restockW
               wData.finalStock = warehouseLeft
             } else if (SMOKED_MODULES.includes(warehouse.module)) {
-              Object.assign(wData, smokedStockFields(warehouse.unit, warehouseLeft, wLatest?.units))
+              Object.assign(wData, smokedStockFields(warehouse.unit, warehouseLeft, wLatest, warehouse.sharedId, unitsLeft))
             }
             await tx.dailyRecord.upsert({
               where: { productId_date: { productId: warehouse.id, date } },
@@ -249,6 +278,9 @@ export async function registerTransfer(shift: TransferShift, lines: TransferLine
             })
 
 
+            if (exactUnits && unitsDeducted !== null && unitsDeducted < unitsMoved) {
+              warnings.push(`${product.name}: Bodega solo tenía ${previousUnits} unidades, se descontaron ${unitsDeducted} y quedaron en 0.`)
+            }
             if (deducted < line.quantity) {
               warnings.push(`${product.name}: Bodega solo tenía ${fmt(previous)} ${warehouse.unit}, se descontó ${fmt(deducted)} y quedó en 0.`)
             }
@@ -269,6 +301,8 @@ export async function registerTransfer(shift: TransferShift, lines: TransferLine
                 shift,
                 batchId,
                 warehouseDeducted: deducted,
+                unitsMoved: takesUnits(product) && line.units !== null && line.units !== undefined ? Math.round(line.units) : null,
+                warehouseUnitsDeducted: unitsDeducted,
               },
             })
 
@@ -405,6 +439,10 @@ export async function undoTransfer(batchId: string): Promise<UndoResult> {
               const wLatest = wToday ?? await tx.dailyRecord.findFirst({ where: { productId: warehouse.id }, orderBy: { date: 'desc' } })
               const previous = warehouseStock(warehouse.module, wLatest, warehouse.unit)
               const next = round3(previous + deducted)
+              // Si el traslado descontó piezas exactas, se devuelven esas mismas; si no, se estima por proporción.
+              const unitsBack = row.warehouseUnitsDeducted !== null && row.warehouseUnitsDeducted !== undefined
+                ? (wLatest?.units ?? 0) + row.warehouseUnitsDeducted
+                : null
               const wData: Prisma.DailyRecordUncheckedCreateInput = {
                 productId: warehouse.id,
                 date,
@@ -418,7 +456,7 @@ export async function undoTransfer(batchId: string): Promise<UndoResult> {
                 wData.restock = wToday?.restock ?? 0
                 wData.finalStock = next
               } else if (SMOKED_MODULES.includes(warehouse.module)) {
-                Object.assign(wData, smokedStockFields(warehouse.unit, next, wLatest?.units))
+                Object.assign(wData, smokedStockFields(warehouse.unit, next, wLatest, warehouse.sharedId, unitsBack))
               }
               await tx.dailyRecord.upsert({
                 where: { productId_date: { productId: warehouse.id, date } },

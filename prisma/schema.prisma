@@ -112,6 +112,9 @@ model Purchase {
   shift     String?
   batchId   String?
   warehouseDeducted Float?
+  // Carnes ahumadas con libras y unidades: piezas llevadas y piezas que se descontaron de Bodega.
+  unitsMoved Int?
+  warehouseUnitsDeducted Int?
   createdAt DateTime @default(now())
 
   @@index([productId, createdAt])

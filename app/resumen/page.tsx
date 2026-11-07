@@ -2,7 +2,7 @@ export const dynamic = 'force-dynamic'
 
 import Navbar from '@/components/Navbar'
 import { prisma } from '@/lib/db'
-import { todayDate, MODULE_LABELS, SECTION_GROUPS, MODULE_ICONS, statusColor, statusBadge, calcStatus, availableStock, warehouseStock, smokedCountsUnits, STANDARD_RESTAURANT_MODULES, CARNES_SERVICIO_MODULES, WEIGHT_MODULES, SMOKED_MODULES, BEVERAGE_SERVICE_MODULES, BODEGA_STOCK_MODULES } from '@/lib/utils'
+import { todayDate, MODULE_LABELS, SECTION_GROUPS, MODULE_ICONS, statusColor, statusBadge, calcStatus, availableStock, warehouseStock, smokedMode, STANDARD_RESTAURANT_MODULES, CARNES_SERVICIO_MODULES, WEIGHT_MODULES, SMOKED_MODULES, BEVERAGE_SERVICE_MODULES, BODEGA_STOCK_MODULES } from '@/lib/utils'
 import { Module, StockStatus } from '@prisma/client'
 
 type StockRecord = {
@@ -25,6 +25,7 @@ type StockRecord = {
 type ProductRow = {
   id: string
   name: string
+  sharedId: string | null
   category: string
   unit: string
   minStock: number
@@ -69,7 +70,7 @@ function restockDisplay(mod: Module, record: StockRecord | undefined, unit: stri
   return total === 0 ? '—' : `+${total.toFixed(1)} ${unit}`
 }
 
-function stockDisplay(product: { unit: string; module: Module }, record: StockRecord | undefined): string {
+function stockDisplay(product: { unit: string; module: Module; sharedId: string | null }, record: StockRecord | undefined): string {
   if (!record) return '—'
   const mod = product.module
   if (CARNES_SERVICIO_MODULES.includes(mod) || BEVERAGE_SERVICE_MODULES.includes(mod) || STANDARD_RESTAURANT_MODULES.includes(mod)) {
@@ -80,10 +81,12 @@ function stockDisplay(product: { unit: string; module: Module }, record: StockRe
     return record.finalWeight !== null ? `${record.finalWeight.toFixed(1)} ${product.unit}` : '—'
   if (SMOKED_MODULES.includes(mod)) {
     // Productos por unidad: la cifra que cuenta son las unidades. En libras, el peso.
-    if (smokedCountsUnits(product.unit)) {
+    const smokedKind = smokedMode(product.unit, product.sharedId)
+    if (smokedKind === 'units') {
       const n = warehouseStock(mod, record, product.unit)
       return `${Number.isInteger(n) ? n : n.toFixed(1)} u`
     }
+    if (smokedKind === 'lb') return record.weightLb !== null ? `${record.weightLb.toFixed(1)} LB` : '—'
     const u = record.units !== null ? `${record.units} u` : '—'
     const w = record.weightLb !== null ? `${record.weightLb.toFixed(1)} LB` : '—'
     return `${u} / ${w}`
@@ -115,6 +118,7 @@ export default async function ResumenPage({
   const products: ProductRow[] = allProducts.map((p) => ({
     id: p.id,
     name: p.name,
+    sharedId: p.sharedId,
     category: p.category,
     unit: p.unit,
     minStock: p.minStock,

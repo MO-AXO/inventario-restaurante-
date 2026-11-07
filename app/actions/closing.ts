@@ -171,7 +171,7 @@ export async function registerClosing(lines: ClosingLine[]): Promise<ClosingResu
                 userId: session.userId,
                 status: calcStatus(warehouseNow, warehouse.minStock),
                 currentStock: warehouseNow,
-                ...smokedStockFields(warehouse.unit, warehouseNow, wLatest?.units),
+                ...smokedStockFields(warehouse.unit, warehouseNow, wLatest, warehouse.sharedId),
                 notes: wToday?.notes ?? null,
               }
               await tx.dailyRecord.upsert({
